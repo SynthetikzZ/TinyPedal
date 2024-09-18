@@ -22,18 +22,17 @@ Weather Widget
 
 from functools import partial
 
-from PySide2.QtCore import Qt
-from PySide2.QtWidgets import QGridLayout, QLabel
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGridLayout, QLabel
 
 from .. import calculation as calc
 from ..api_control import api
 from ._base import Overlay
 
 WIDGET_NAME = "weather"
-PREFIX_WETNESS = "Dry","Wet"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -118,9 +117,12 @@ class Realtime(Overlay):
         self.last_rain_per = None
         self.last_wet_road = None
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Track temperature
             if self.wcfg["show_temperature"]:
@@ -178,8 +180,12 @@ class Realtime(Overlay):
     def format_temperature(self, track_deg, air_deg):
         """Format track & ambient temperature"""
         if self.cfg.units["temperature_unit"] == "Fahrenheit":
-            return f"{calc.celsius2fahrenheit(track_deg):.1f}({calc.celsius2fahrenheit(air_deg):.1f}){self.sign_temp}"
-        return f"{track_deg:.1f}({air_deg:.1f}){self.sign_temp}"
+            track_deg = f"{calc.celsius2fahrenheit(track_deg):.2f}"[:4].ljust(4)
+            air_deg = f"{calc.celsius2fahrenheit(air_deg):.2f}"[:4].ljust(4)
+        else:
+            track_deg = f"{track_deg:.2f}"[:4].ljust(4)
+            air_deg = f"{air_deg:.2f}"[:4].ljust(4)
+        return f"{track_deg}({air_deg}){self.sign_temp}"
 
     def format_rain(self, percentage):
         """Format rain percentage"""
@@ -187,6 +193,7 @@ class Realtime(Overlay):
 
     def format_wetness(self, min_wet, max_wet, avg_wet):
         """Format wetness"""
-        return (f"{PREFIX_WETNESS[max_wet > 0.01]} {min_wet * 100:.0f}{self.sign_rain}"
+        surface = "Wet" if max_wet > 0.01 else "Dry"
+        return (f"{surface} {min_wet * 100:.0f}{self.sign_rain}"
                 f" < {max_wet * 100:.0f}{self.sign_rain}"
                 f" ≈ {avg_wet * 100:.0f}{self.sign_rain}")

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-SOURCE_PATH=$(dirname $(readlink -f $0))
-DESTINATION_PREFIX="/usr/local"
+SOURCE_PATH=$(dirname "$(readlink -f $0)")
+DESTINATION_PREFIX="$HOME/.local"
 
 if [ -n "$1" ];
 then
@@ -37,12 +37,7 @@ then
     exit 1
 fi
 
-if [ ! -w "${SHARE_PATH}" -o ! -w "${BIN_PATH}" -o ! -w "${APPLICATIONS_PATH}" ];
-then
-    echo "Error: Insufficient privileges to install in prefix directory '${DESTINATION_PREFIX}' or it doesn't contain the required directories:"
-    echo -e "    ${SHARE_PATH}, ${BIN_PATH}, ${APPLICATIONS_PATH}\n"
-    exit 1
-fi
+
 
 if [ -d "${DESTINATION_PATH}" ];
 then
@@ -58,8 +53,9 @@ fi
 echo "Writing ${DESTINATION_PATH}"
 cp -r "${SOURCE_PATH}" "${DESTINATION_PATH}"
 
-rm "${APPLICATIONS_PATH}/svictor-TinyPedal.desktop" "${BIN_PATH}/TinyPedal"
-
+if [ ! -d "${APPLICATIONS_PATH}" ]; then
+    mkdir ${APPLICATIONS_PATH}
+fi
 echo "Writing ${APPLICATIONS_PATH}/svictor-TinyPedal.desktop"
 replace "/usr/local" "${DESTINATION_PREFIX}" <"${SOURCE_PATH}/svictor-TinyPedal.desktop" >"${APPLICATIONS_PATH}/svictor-TinyPedal.desktop"
 

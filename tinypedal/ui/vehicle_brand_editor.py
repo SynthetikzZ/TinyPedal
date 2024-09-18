@@ -23,13 +23,14 @@ Vehicle brand editor
 import os
 import logging
 import json
+import re
 import time
 import socket
 from urllib.request import urlopen
 
-from PySide2.QtCore import Qt
-from PySide2.QtGui import QIcon
-from PySide2.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QAction
+from PySide6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QDialog,
@@ -43,14 +44,13 @@ from PySide2.QtWidgets import (
     QComboBox,
     QHeaderView,
     QAbstractItemView,
-    QMenu,
-    QAction
+    QMenu
 )
 
 from ..api_control import api
 from ..setting import cfg, copy_setting
 from ..const import APP_ICON
-from ..module_control import wctrl
+from ..widget_control import wctrl
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,7 @@ class VehicleBrandEditor(QDialog):
         self.table_brands.setColumnCount(2)
         self.table_brands.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_brands.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.table_brands.setSelectionMode(QAbstractItemView.SingleSelection)
         self.refresh_table()
 
         # Menu
@@ -164,10 +165,7 @@ class VehicleBrandEditor(QDialog):
 
     def delete_brand(self):
         """Delete brand entry"""
-        selected_data = self.table_brands.selectedIndexes()
-        deletion_list = sorted(set(data.row() for data in selected_data), reverse=True)
-        for row_index in deletion_list:
-            self.table_brands.removeRow(row_index)
+        self.table_brands.removeRow(self.table_brands.currentRow())
         self.update_brands_temp()
 
     def open_rename_brand(self):
@@ -203,7 +201,7 @@ class VehicleBrandEditor(QDialog):
 
         if sim_name == "LMU":
             url_port = config["url_port_lmu"]
-            resource_name = "sessions/getAllVehicles"
+            resource_name = "sessions/getAllAvailableVehicles"
         elif sim_name == "RF2":
             url_port = config["url_port_rf2"]
             resource_name = "race/car"
@@ -249,14 +247,22 @@ class VehicleBrandEditor(QDialog):
 
     def parse_brand_data(self, vehicles: dict):
         """Parse brand data"""
-        if vehicles[0].get("desc"):
-            # Match LMU data format
+        data_type = ""
+
+        for veh in vehicles:
+            if veh.get("desc"):
+                data_type = "LMU"
+                break
+            if veh.get("name"):
+                data_type = "RF2"
+                break
+
+        if data_type == "LMU":
             brands_db = {
                 veh["desc"]: veh["manufacturer"]
                 for veh in vehicles
             }
-        elif vehicles[0].get("name"):
-            # Match RF2 data format
+        elif data_type == "RF2":
             brands_db = {
                 parse_vehicle_name(veh): veh["manufacturer"]
                 for veh in vehicles
@@ -398,13 +404,13 @@ class BatchRenameBrand(QDialog):
 
 def parse_vehicle_name(vehicle):
     """Parse vehicle name"""
-    # Example path string: "D:\\RF2\\Installed\\Vehicles\\SOMECAR\\1.50\\CAR_24.VEH"
-    path_split = vehicle["vehFile"].split("\\")
-    if len(path_split) < 2:
-        # If VEH path does not contain version number, split name by space directly
-        # Example name: "#24 Some Car 1.50"
-        version_length = len(vehicle["name"].split(" ")[-1]) + 1
+    version = re.split(r"(\\)", vehicle["vehFile"])  # get version number from VEH path
+
+    if len(version) < 3:  # if VEH path does not contain version number
+        version = re.split(r"( )", vehicle["name"])
+        version_length = len(version[-1]) + 1
     else:
-        # Get version number from last second split of path_split
-        version_length = len(path_split[-2]) + 1
-    return vehicle["name"][:-version_length]
+        version_length = len(version[-3]) + 1
+
+    name_length = len(vehicle["name"])
+    return vehicle["name"][:name_length - version_length]

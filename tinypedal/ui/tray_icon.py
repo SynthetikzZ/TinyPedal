@@ -20,8 +20,8 @@
 Tray icon
 """
 
-from PySide2.QtGui import QIcon
-from PySide2.QtWidgets import QSystemTrayIcon, QMenu, QAction
+from PySide6.QtGui import QIcon, QAction
+from PySide6.QtWidgets import QSystemTrayIcon, QMenu
 
 from ..const import APP_NAME, VERSION, APP_ICON
 from .menu import OverlayMenu

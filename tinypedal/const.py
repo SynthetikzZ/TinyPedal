@@ -20,14 +20,14 @@
 Constants
 """
 
-import os
 import sys
 import platform
+from .validator import is_folder_exist
 
-from PySide2.QtCore import qVersion
+from PySide6.QtCore import qVersion
 
 
-VERSION = "2.18.0"
+VERSION = "2.16.0"
 APP_NAME = "TinyPedal"
 PLATFORM = platform.system()
 APP_ICON = "images/icon.png"
@@ -40,10 +40,27 @@ WEBSITE = "https://github.com/s-victor/TinyPedal"
 PYTHON_VERSION = ".".join(str(num) for num in sys.version_info[0:3])
 QT_VERSION = qVersion()
 
-# Global path
+# User data path
 if PLATFORM == "Windows":
-    from .validator import user_data_path
-    PATH_GLOBAL = user_data_path(f"{os.getenv('APPDATA')}/{APP_NAME}/")
+    PATH_SETTINGS = "settings/"
+    PATH_LOG = "./"
+    PATH_DELTABEST = "deltabest/"
+    PATH_ENERGY = PATH_DELTABEST
+    PATH_FUEL = PATH_DELTABEST
+    PATH_SECTORBEST = PATH_DELTABEST
+    PATH_TRACKMAP = "trackmap/"
+    PATH_BRANDLOGO = "brandlogo/"
+    is_folder_exist(PATH_SETTINGS)
+    is_folder_exist(PATH_DELTABEST)
+    is_folder_exist(PATH_TRACKMAP)
+    is_folder_exist(PATH_BRANDLOGO)
 else:
     from xdg import BaseDirectory as BD
-    PATH_GLOBAL = BD.save_config_path(APP_NAME) + "/"
+    PATH_SETTINGS = BD.save_config_path(APP_NAME) + "/"
+    PATH_LOG = PATH_SETTINGS
+    PATH_DELTABEST = BD.save_data_path(APP_NAME, "deltabest") + "/"
+    PATH_ENERGY = PATH_DELTABEST
+    PATH_FUEL = PATH_DELTABEST
+    PATH_SECTORBEST = PATH_DELTABEST
+    PATH_TRACKMAP = BD.save_data_path(APP_NAME, "trackmap") + "/"
+    PATH_BRANDLOGO = BD.save_data_path(APP_NAME, "brandlogo") + "/"

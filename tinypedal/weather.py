@@ -26,31 +26,26 @@ from functools import lru_cache
 MAX_MINUTES = 9999
 MIN_TEMPERATURE = -273
 DEFAULT = [(MAX_MINUTES, -1, MIN_TEMPERATURE, -1)]
-RF2_FORECAST_NODES = ("START", "NODE_25", "NODE_50", "NODE_75", "FINISH")
+WEATHER_NODES = ("START", "NODE_25", "NODE_50", "NODE_75", "FINISH")
 
 
 def forecast_rf2(data: dict) -> list[tuple]:
-    """Get value from weather forecast dictionary, output 5 api data"""
+    """Get value from weather forecast dictionary, output 5 api data + 5 padding data"""
     try:
         output = [
             (round(index * 0.2, 1),                                   # 0 - fraction start time
             data[weather]["WNV_SKY"]["currentValue"],                 # 1 - sky type index
             round(data[weather]["WNV_TEMPERATURE"]["currentValue"]),  # 2 - temperature
             round(data[weather]["WNV_RAIN_CHANCE"]["currentValue"]),  # 3 - rain chance
-            ) for index, weather in enumerate(RF2_FORECAST_NODES)]
+            ) for index, weather in enumerate(WEATHER_NODES)]
+        output.extend(DEFAULT * 5)
     except (KeyError, TypeError):
-        output = DEFAULT * 5
+        output = DEFAULT * 10
     return output
 
 
-def forecast_time_progress(
-    session_percent: float, session_length: float, elapsed_time: float) -> float:
-    """Forecast estimated time progress"""
-    return session_percent * session_length - elapsed_time
-
-
 @lru_cache(maxsize=2)
-def sky_type_correction(sky_type: int, raininess: float) -> int:
+def sky_type_correction(sky_type, raininess):
     """Correct current sky type index based on current raininess
 
     Rain percent:
@@ -72,7 +67,7 @@ def sky_type_correction(sky_type: int, raininess: float) -> int:
     if raininess <= 0:
         if sky_type > 4:
             return 4
-        return 0
+        return sky_type
     if 0 < raininess <= 10:
         return 5
     if 10 < raininess <= 15:

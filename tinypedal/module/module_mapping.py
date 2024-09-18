@@ -26,6 +26,7 @@ from functools import partial
 
 from ._base import DataModule
 from ..module_info import minfo
+from ..const import PATH_TRACKMAP
 from ..api_control import api
 from .. import calculation as calc
 from .. import formatter as fmt
@@ -41,17 +42,15 @@ class Realtime(DataModule):
 
     def __init__(self, config):
         super().__init__(config, MODULE_NAME)
-        self.filepath = self.cfg.path.track_map
 
     def update_data(self):
         """Update module data"""
         reset = False
+        recorder = MapRecorder()
         update_interval = self.active_interval
 
-        recorder = MapRecorder(self.filepath)
-
         while not self.event.wait(update_interval):
-            if self.state.active:
+            if api.state:
 
                 if not reset:
                     reset = True
@@ -86,8 +85,8 @@ class Realtime(DataModule):
 class MapRecorder:
     """Map data recorder"""
 
-    def __init__(self, filepath):
-        self.map = MapData(filepath)
+    def __init__(self):
+        self.map = MapData()
         self._recording = False
         self._validating = False
         self._last_lap_stime = -1  # last lap start time
@@ -177,14 +176,14 @@ class MapRecorder:
 class MapData:
     """Map data"""
 
-    def __init__(self, filepath):
+    def __init__(self):
         self.exist = False
         # Raw data
         self.raw_coords = None
         self.raw_dists = None
         self.sectors_index = None
         # File info
-        self._filepath = filepath
+        self._filepath = PATH_TRACKMAP
         self._filename = None
         # Temp data
         self._temp_raw_coords = None

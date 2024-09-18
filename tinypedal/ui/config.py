@@ -20,15 +20,12 @@
 Config window
 """
 
-import os
 import re
 import time
-from collections import deque
 
-from PySide2.QtCore import Qt, QRegularExpression, QLocale
-from PySide2.QtGui import (
-    QIcon, QRegularExpressionValidator, QIntValidator, QDoubleValidator, QColor)
-from PySide2.QtWidgets import (
+from PySide6.QtCore import Qt, QRegularExpression, QLocale
+from PySide6.QtGui import QIcon, QRegularExpressionValidator, QIntValidator, QDoubleValidator, QColor
+from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -44,8 +41,7 @@ from PySide2.QtWidgets import (
     QFontComboBox,
     QSpinBox,
     QMenu,
-    QMessageBox,
-    QFileDialog
+    QMessageBox
 )
 
 from .. import regex_pattern as rxp
@@ -53,7 +49,9 @@ from .. import validator as val
 from .. import formatter as fmt
 from ..setting import cfg
 from ..const import APP_ICON
-from ..module_control import mctrl, wctrl
+from ..api_connector import API_NAME_LIST
+from ..module_control import mctrl
+from ..widget_control import wctrl
 
 
 OPTION_WIDTH = 120
@@ -69,19 +67,13 @@ float_valid = QDoubleValidator(-999999.9999, 999999.9999, 6)
 float_valid.setLocale(number_locale)
 color_valid = QRegularExpressionValidator(QRegularExpression('^#[0-9a-fA-F]*'))
 heatmap_name_valid = QRegularExpressionValidator(QRegularExpression('[0-9a-zA-Z_]*'))
-color_pick_history = deque(
-    ["#FFF"] * QColorDialog.customCount(),
-    maxlen=QColorDialog.customCount()
-)
 
 
 class FontConfig(QDialog):
     """Config global font setting"""
 
-    def __init__(self, master, user_setting: dict):
+    def __init__(self, master):
         super().__init__(master)
-        self.user_setting = user_setting
-
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
         self.setWindowTitle("Global Font Override")
         self.setWindowIcon(QIcon(APP_ICON))
@@ -100,8 +92,7 @@ class FontConfig(QDialog):
 
         self.label_fontweight = QLabel("Font Weight")
         self.edit_fontweight = QComboBox()
-        self.edit_fontweight.addItems(
-            ("no change", *rxp.CHOICE_COMMON[rxp.CFG_FONT_WEIGHT]))
+        self.edit_fontweight.addItems(("no change", *rxp.FONT_WEIGHT_LIST))
         self.edit_fontweight.setFixedWidth(OPTION_WIDTH)
 
         layout_option = QGridLayout()
@@ -134,11 +125,11 @@ class FontConfig(QDialog):
 
     def applying(self):
         """Save & apply"""
-        self.save_setting(self.user_setting)
+        self.save_setting(cfg.user.setting)
 
     def saving(self):
         """Save & close"""
-        self.applying()
+        self.save_setting(cfg.user.setting)
         self.accept()  # close
 
     def save_setting(self, dict_user):
@@ -165,16 +156,11 @@ class FontConfig(QDialog):
 class UserConfig(QDialog):
     """User configuration"""
 
-    def __init__(
-        self, master, key_name: str, cfg_type: str, user_setting: dict,
-        default_setting: dict, option_width: int = OPTION_WIDTH):
+    def __init__(self, master, key_name, cfg_type):
         super().__init__(master)
         self.master = master
         self.key_name = key_name
         self.cfg_type = cfg_type
-        self.user_setting = user_setting
-        self.default_setting = default_setting
-        self.option_width = option_width
 
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
         self.setWindowTitle(f"{fmt.format_option_name(key_name)}")
@@ -184,7 +170,6 @@ class UserConfig(QDialog):
         # Option type
         self.option_bool = []
         self.option_color = []
-        self.option_path = []
         self.option_fontname = []
         self.option_droplist = []
         self.option_string = []
@@ -248,73 +233,55 @@ class UserConfig(QDialog):
         if reset_msg == QMessageBox.Yes:
             for key in self.option_bool:
                 getattr(self, f"checkbox_{key}").setChecked(
-                    self.default_setting[self.key_name][key])
+                    cfg.default.setting[self.key_name][key])
 
             for key in self.option_color:
                 getattr(self, f"lineedit_{key}").setText(
-                    self.default_setting[self.key_name][key])
-
-            for key in self.option_path:
-                getattr(self, f"lineedit_{key}").setText(
-                    self.default_setting[self.key_name][key])
+                    cfg.default.setting[self.key_name][key])
 
             for key in self.option_fontname:
                 getattr(self, f"fontedit_{key}").setCurrentFont(
-                    self.default_setting[self.key_name][key])
+                    cfg.default.setting[self.key_name][key])
 
             for key in self.option_droplist:
                 curr_index = getattr(self, f"combobox_{key}").findText(
-                    f"{self.default_setting[self.key_name][key]}", Qt.MatchExactly)
+                    f"{cfg.default.setting[self.key_name][key]}", Qt.MatchExactly)
                 if curr_index != -1:
                     getattr(self, f"combobox_{key}").setCurrentIndex(curr_index)
 
             for key in self.option_string:
                 getattr(self, f"lineedit_{key}").setText(
-                    self.default_setting[self.key_name][key])
+                    cfg.default.setting[self.key_name][key])
 
             for key in self.option_integer:
                 getattr(self, f"lineedit_{key}").setText(
-                    str(self.default_setting[self.key_name][key]))
+                    str(cfg.default.setting[self.key_name][key]))
 
             for key in self.option_float:
                 getattr(self, f"lineedit_{key}").setText(
-                    str(self.default_setting[self.key_name][key]))
+                    str(cfg.default.setting[self.key_name][key]))
 
     def save_setting(self, is_apply):
         """Save setting"""
         error_found = False
         for key in self.option_bool:
-            self.user_setting[self.key_name][key] = getattr(
+            cfg.user.setting[self.key_name][key] = getattr(
                 self, f"checkbox_{key}").isChecked()
 
         for key in self.option_color:
             value = getattr(self, f"lineedit_{key}").text()
             if val.hex_color(value):
-                self.user_setting[self.key_name][key] = value
+                cfg.user.setting[self.key_name][key] = value
             else:
                 self.value_error_message("color", key)
                 error_found = True
 
-        for key in self.option_path:
-            # Try convert to relative path again, in case user manually sets path
-            value = val.relative_path(getattr(self, f"lineedit_{key}").text())
-            if val.user_data_path(value):
-                # Make sure path end with "/"
-                if not value.endswith("/"):
-                    value += "/"
-                self.user_setting[self.key_name][key] = value
-                # Update reformatted path to edit box
-                getattr(self, f"lineedit_{key}").setText(value)
-            else:
-                self.value_error_message("path", key)
-                error_found = True
-
         for key in self.option_fontname:
-            self.user_setting[self.key_name][key] = getattr(
+            cfg.user.setting[self.key_name][key] = getattr(
                 self, f"fontedit_{key}").currentFont().family()
 
         for key in self.option_droplist:
-            self.user_setting[self.key_name][key] = getattr(
+            cfg.user.setting[self.key_name][key] = getattr(
                 self, f"combobox_{key}").currentText()
 
         for key in self.option_string:
@@ -323,12 +290,12 @@ class UserConfig(QDialog):
                 self.value_error_message("clock format", key)
                 error_found = True
                 continue
-            self.user_setting[self.key_name][key] = value
+            cfg.user.setting[self.key_name][key] = value
 
         for key in self.option_integer:
             value = getattr(self, f"lineedit_{key}").text()
             if val.string_number(value):
-                self.user_setting[self.key_name][key] = int(value)
+                cfg.user.setting[self.key_name][key] = int(value)
             else:
                 self.value_error_message("number", key)
                 error_found = True
@@ -339,21 +306,15 @@ class UserConfig(QDialog):
                 value = float(value)
                 if value % 1 == 0:  # remove unnecessary decimal points
                     value = int(value)
-                self.user_setting[self.key_name][key] = value
+                cfg.user.setting[self.key_name][key] = value
             else:
                 self.value_error_message("number", key)
                 error_found = True
-
         # Abort saving if error found
         if error_found:
             return None
-        # Save global settings
-        if self.cfg_type == "global":
-            cfg.update_path()
-            cfg.save(0, "config")
-        # Save user preset settings
-        else:
-            cfg.save(0)
+        # Save & apply changes
+        cfg.save(0)
         while cfg.is_saving:  # wait saving finish
             time.sleep(0.01)
         self.reloading()
@@ -372,12 +333,10 @@ class UserConfig(QDialog):
     def reloading(self):
         """Reloading depends on setting types"""
         # Select type
-        if self.cfg_type == "global":
-            self.master.reload_preset()
-        elif self.cfg_type == wctrl.type_id:
+        if self.cfg_type == "widget":
             wctrl.reload(self.key_name)
             self.master.refresh_state()
-        elif self.cfg_type == mctrl.type_id:
+        elif self.cfg_type == "module":
             mctrl.reload(self.key_name)
             self.master.refresh_state()
         elif self.cfg_type == "misc":
@@ -388,9 +347,10 @@ class UserConfig(QDialog):
 
     def create_options(self, layout):
         """Create options"""
-        key_list_user = tuple(self.user_setting[self.key_name])  # create user key list
+        key_list_user = tuple(cfg.user.setting[self.key_name])  # create user key list
 
         for idx, key in enumerate(key_list_user):
+            #print(key, cfg.user.setting[self.key_name][key])
             self.__add_option_label(
                 idx, key, layout)
             # Bool
@@ -403,25 +363,45 @@ class UserConfig(QDialog):
                 self.__add_option_color(
                     idx, key, layout)
                 continue
-            # User path string
-            if re.search(rxp.CFG_USER_PATH, key):
-                self.__add_option_path(
-                    idx, key, layout)
-                continue
             # Font name string
             if re.search(rxp.CFG_FONT_NAME, key):
                 self.__add_option_fontname(
                     idx, key, layout)
                 continue
-            # Units choice list string
-            if key in rxp.CHOICE_UNITS:
+            # Units list string
+            if key in rxp.UNITS_DICT:
                 self.__add_option_combolist(
-                    idx, key, layout, rxp.CHOICE_UNITS[key])
+                    idx, key, layout, rxp.UNITS_DICT[key])
                 continue
-            # Common choice list string
-            if key in rxp.CHOICE_COMMON:
+            # API name string
+            if re.search(rxp.CFG_API_NAME, key):
                 self.__add_option_combolist(
-                    idx, key, layout, rxp.CHOICE_COMMON[key])
+                    idx, key, layout, API_NAME_LIST)
+                continue
+            # Font weight string
+            if re.search(rxp.CFG_FONT_WEIGHT, key):
+                self.__add_option_combolist(
+                    idx, key, layout, rxp.FONT_WEIGHT_LIST)
+                continue
+            # Encoding string
+            if re.search(rxp.CFG_ENCODING, key):
+                self.__add_option_combolist(
+                    idx, key, layout, rxp.ENCODING_LIST)
+                continue
+            # Deltabest string
+            if re.search(rxp.CFG_DELTABEST, key):
+                self.__add_option_combolist(
+                    idx, key, layout, rxp.DELTABEST_LIST)
+                continue
+            # Target laptime string
+            if re.search(rxp.CFG_TARGET_LAPTIME, key):
+                self.__add_option_combolist(
+                    idx, key, layout, rxp.TARGET_LAPTIME_LIST)
+                continue
+            # Text alignment string
+            if re.search(rxp.CFG_TEXT_ALIGNMENT, key):
+                self.__add_option_combolist(
+                    idx, key, layout, rxp.TEXT_ALIGNMENT_LIST)
                 continue
             # Heatmap string
             if re.search(rxp.CFG_HEATMAP, key):
@@ -455,12 +435,12 @@ class UserConfig(QDialog):
     def __add_option_bool(self, idx, key, layout):
         """Bool"""
         setattr(self, f"checkbox_{key}", QCheckBox())
-        getattr(self, f"checkbox_{key}").setFixedWidth(self.option_width)
-        getattr(self, f"checkbox_{key}").setChecked(self.user_setting[self.key_name][key])
+        getattr(self, f"checkbox_{key}").setFixedWidth(OPTION_WIDTH)
+        getattr(self, f"checkbox_{key}").setChecked(cfg.user.setting[self.key_name][key])
         # Context menu
         add_context_menu(
             getattr(self, f"checkbox_{key}"),
-            self.default_setting[self.key_name][key],
+            cfg.default.setting[self.key_name][key],
             "set_check")
         # Add layout
         layout.addWidget(
@@ -469,9 +449,8 @@ class UserConfig(QDialog):
 
     def __add_option_color(self, idx, key, layout):
         """Color string"""
-        setattr(self, f"lineedit_{key}", DoubleClickEdit(
-            mode="color", init=self.user_setting[self.key_name][key]))
-        getattr(self, f"lineedit_{key}").setFixedWidth(self.option_width)
+        setattr(self, f"lineedit_{key}", ColorEdit(cfg.user.setting[self.key_name][key]))
+        getattr(self, f"lineedit_{key}").setFixedWidth(OPTION_WIDTH)
         getattr(self, f"lineedit_{key}").setMaxLength(9)
         getattr(self, f"lineedit_{key}").setValidator(color_valid)
         getattr(self, f"lineedit_{key}").textChanged.connect(
@@ -479,46 +458,28 @@ class UserConfig(QDialog):
             update_preview_color(color_str, option))
         # Load selected option
         getattr(self, f"lineedit_{key}").setText(
-            self.user_setting[self.key_name][key])
+            cfg.user.setting[self.key_name][key])
         # Context menu
         add_context_menu(
             getattr(self, f"lineedit_{key}"),
-            str(self.default_setting[self.key_name][key]),
+            str(cfg.default.setting[self.key_name][key]),
             "set_text")
         # Add layout
         layout.addWidget(
             getattr(self, f"lineedit_{key}"), idx, COLUMN_OPTION)
         self.option_color.append(key)
 
-    def __add_option_path(self, idx, key, layout):
-        """Path string"""
-        setattr(self, f"lineedit_{key}", DoubleClickEdit(
-            mode="path", init=self.user_setting[self.key_name][key]))
-        getattr(self, f"lineedit_{key}").setFixedWidth(self.option_width)
-        # Load selected option
-        getattr(self, f"lineedit_{key}").setText(
-            self.user_setting[self.key_name][key])
-        # Context menu
-        add_context_menu(
-            getattr(self, f"lineedit_{key}"),
-            str(self.default_setting[self.key_name][key]),
-            "set_text")
-        # Add layout
-        layout.addWidget(
-            getattr(self, f"lineedit_{key}"), idx, COLUMN_OPTION)
-        self.option_path.append(key)
-
     def __add_option_fontname(self, idx, key, layout):
         """Font name string"""
         setattr(self, f"fontedit_{key}", QFontComboBox())
-        getattr(self, f"fontedit_{key}").setFixedWidth(self.option_width)
+        getattr(self, f"fontedit_{key}").setFixedWidth(OPTION_WIDTH)
         # Load selected option
         getattr(self, f"fontedit_{key}").setCurrentFont(
-            self.user_setting[self.key_name][key])
+            cfg.user.setting[self.key_name][key])
         # Context menu
         add_context_menu(
             getattr(self, f"fontedit_{key}"),
-            self.default_setting[self.key_name][key],
+            cfg.default.setting[self.key_name][key],
             "set_font")
         # Add layout
         layout.addWidget(
@@ -528,17 +489,17 @@ class UserConfig(QDialog):
     def __add_option_combolist(self, idx, key, layout, item_list):
         """Combo droplist string"""
         setattr(self, f"combobox_{key}", QComboBox())
-        getattr(self, f"combobox_{key}").setFixedWidth(self.option_width)
+        getattr(self, f"combobox_{key}").setFixedWidth(OPTION_WIDTH)
         getattr(self, f"combobox_{key}").addItems(item_list)
         # Load selected option
         curr_index = getattr(self, f"combobox_{key}").findText(
-            f"{self.user_setting[self.key_name][key]}", Qt.MatchExactly)
+            f"{cfg.user.setting[self.key_name][key]}", Qt.MatchExactly)
         if curr_index != -1:
             getattr(self, f"combobox_{key}").setCurrentIndex(curr_index)
         # Context menu
         add_context_menu(
             getattr(self, f"combobox_{key}"),
-            self.default_setting[self.key_name][key],
+            cfg.default.setting[self.key_name][key],
             "set_combo")
         # Add layout
         layout.addWidget(
@@ -548,14 +509,14 @@ class UserConfig(QDialog):
     def __add_option_string(self, idx, key, layout):
         """String"""
         setattr(self, f"lineedit_{key}", QLineEdit())
-        getattr(self, f"lineedit_{key}").setFixedWidth(self.option_width)
+        getattr(self, f"lineedit_{key}").setFixedWidth(OPTION_WIDTH)
         # Load selected option
         getattr(self, f"lineedit_{key}").setText(
-            self.user_setting[self.key_name][key])
+            cfg.user.setting[self.key_name][key])
         # Context menu
         add_context_menu(
             getattr(self, f"lineedit_{key}"),
-            self.default_setting[self.key_name][key],
+            cfg.default.setting[self.key_name][key],
             "set_text")
         # Add layout
         layout.addWidget(getattr(
@@ -565,15 +526,15 @@ class UserConfig(QDialog):
     def __add_option_integer(self, idx, key, layout):
         """Integer"""
         setattr(self, f"lineedit_{key}", QLineEdit())
-        getattr(self, f"lineedit_{key}").setFixedWidth(self.option_width)
+        getattr(self, f"lineedit_{key}").setFixedWidth(OPTION_WIDTH)
         getattr(self, f"lineedit_{key}").setValidator(integer_valid)
         # Load selected option
         getattr(self, f"lineedit_{key}").setText(
-            str(self.user_setting[self.key_name][key]))
+            str(cfg.user.setting[self.key_name][key]))
         # Context menu
         add_context_menu(
             getattr(self, f"lineedit_{key}"),
-            str(self.default_setting[self.key_name][key]),
+            str(cfg.default.setting[self.key_name][key]),
             "set_text")
         # Add layout
         layout.addWidget(
@@ -583,15 +544,15 @@ class UserConfig(QDialog):
     def __add_option_float(self, idx, key, layout):
         """Float"""
         setattr(self, f"lineedit_{key}", QLineEdit())
-        getattr(self, f"lineedit_{key}").setFixedWidth(self.option_width)
+        getattr(self, f"lineedit_{key}").setFixedWidth(OPTION_WIDTH)
         getattr(self, f"lineedit_{key}").setValidator(float_valid)
         # Load selected option
         getattr(self, f"lineedit_{key}").setText(
-            str(self.user_setting[self.key_name][key]))
+            str(cfg.user.setting[self.key_name][key]))
         # Context menu
         add_context_menu(
             getattr(self, f"lineedit_{key}"),
-            str(self.default_setting[self.key_name][key]),
+            str(cfg.default.setting[self.key_name][key]),
             "set_text")
         # Add layout
         layout.addWidget(
@@ -599,58 +560,33 @@ class UserConfig(QDialog):
         self.option_float.append(key)
 
 
-class DoubleClickEdit(QLineEdit):
-    """Line edit with double click dialog trigger"""
+class ColorEdit(QLineEdit):
+    """Line edit with color dialog"""
 
-    def __init__(self, mode: str, init: str):
-        """Set dialog mode and initial value
-
-        Args:
-            mode: "color", "path".
-            init: initial value.
-        """
+    def __init__(self, color_str):
         super().__init__()
-        self.open_dialog = getattr(self, f"open_dialog_{mode}")
-        self.init_value = init
+        self.color_str = color_str
 
     def mouseDoubleClickEvent(self, event):
-        """Double click to open dialog"""
+        """Double click to open color dialog"""
         if event.buttons() == Qt.LeftButton:
-            self.open_dialog()
-
-    def open_dialog_color(self):
-        """Open color dialog"""
-        color_dialog = QColorDialog()
-        # Load color history to custom color slot
-        for index, old_color in enumerate(color_pick_history):
-            color_dialog.setCustomColor(index, QColor(old_color))
-        # Open color selector dialog
-        color_get = color_dialog.getColor(
-            initial=QColor(self.init_value),
-            options=QColorDialog.ShowAlphaChannel
-        )
-        if color_get.isValid():
-            # Add new color to color history
-            if color_pick_history[0] != color_get:
-                color_pick_history.appendleft(color_get)
-            # Set output format
-            if color_get.alpha() == 255:  # without alpha value
-                color = color_get.name(QColor.HexRgb).upper()
-            else:  # with alpha value
-                color = color_get.name(QColor.HexArgb).upper()
-            # Update edit box and init value
-            self.setText(color)
-            self.init_value = color
-
-    def open_dialog_path(self):
-        """Open file path dialog"""
-        path_selected = QFileDialog.getExistingDirectory(self, dir=self.init_value)
-        if os.path.exists(path_selected):
-            # Convert to relative path if in APP root folder
-            path_valid = f"{val.relative_path(path_selected)}/"
-            # Update edit box and init value
-            self.setText(path_valid)
-            self.init_value = path_valid
+            color_dialog = QColorDialog()
+            # Add loaded color to custom color slot 0
+            color_dialog.setCustomColor(0, QColor(self.color_str))
+            # Open color selector dialog
+            color_get = color_dialog.getColor(
+                initial=QColor(self.color_str),
+                options=QColorDialog.ShowAlphaChannel
+            )
+            # Update color to edit box
+            if color_get.isValid():
+                # Add new color to custom color slot 1
+                color_dialog.setCustomColor(1, color_get)
+                if color_get.alpha() == 255:  # without alpha value
+                    color = color_get.name(QColor.HexRgb).upper()
+                else:  # with alpha value
+                    color = color_get.name(QColor.HexArgb).upper()
+                self.setText(color)
 
 
 def add_context_menu(target, default, mode):

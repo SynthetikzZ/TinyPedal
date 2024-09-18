@@ -20,8 +20,8 @@
 Wheel alignment Widget
 """
 
-from PySide2.QtCore import Qt
-from PySide2.QtWidgets import QGridLayout
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGridLayout, QLabel
 
 from .. import calculation as calc
 from ..api_control import api
@@ -30,7 +30,7 @@ from ._base import Overlay
 WIDGET_NAME = "wheel_alignment"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -45,7 +45,7 @@ class Realtime(Overlay):
         text_def = "n/a"
         bar_padx = round(self.wcfg["font_size"] * self.wcfg["bar_padding"]) * 2
         bar_gap = self.wcfg["bar_gap"]
-        bar_width = font_m.width * 5 + bar_padx
+        bar_width = f"min-width: {font_m.width * 5 + bar_padx}px;"
 
         # Base style
         self.setStyleSheet(
@@ -53,110 +53,139 @@ class Realtime(Overlay):
             f"font-size: {self.wcfg['font_size']}px;"
             f"font-weight: {self.wcfg['font_weight']};"
         )
-        bar_style_desc = self.set_qss(
-            fg_color=self.wcfg["font_color_caption"],
-            bg_color=self.wcfg["bkg_color_caption"],
-            font_size=int(self.wcfg['font_size'] * 0.8)
-        )
 
         # Create layout
         layout = QGridLayout()
         layout.setContentsMargins(0,0,0,0)  # remove border
+        layout_camber = QGridLayout()
+        layout_toein = QGridLayout()
+        layout_camber.setSpacing(0)
+        layout_toein.setSpacing(0)
         layout.setSpacing(bar_gap)
         layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.setLayout(layout)
+
+        column_camber = self.wcfg["column_index_camber"]
+        column_toein = self.wcfg["column_index_toe_in"]
+
+        # Caption
+        if self.wcfg["show_caption"]:
+            bar_style_desc = (
+                f"color: {self.wcfg['font_color_caption']};"
+                f"background: {self.wcfg['bkg_color_caption']};"
+                f"font-size: {int(self.wcfg['font_size'] * 0.8)}px;"
+            )
+            bar_desc_camber = QLabel("camber")
+            bar_desc_camber.setAlignment(Qt.AlignCenter)
+            bar_desc_camber.setStyleSheet(bar_style_desc)
+            layout_camber.addWidget(bar_desc_camber, 0, 0, 1, 0)
+
+            bar_desc_toein = QLabel("toe in")
+            bar_desc_toein.setAlignment(Qt.AlignCenter)
+            bar_desc_toein.setStyleSheet(bar_style_desc)
+            layout_toein.addWidget(bar_desc_toein, 0, 0, 1, 0)
+
 
         # Camber
         if self.wcfg["show_camber"]:
-            layout_camber = QGridLayout()
-            layout_camber.setSpacing(0)
-            bar_style_camber = self.set_qss(
-                fg_color=self.wcfg["font_color_camber"],
-                bg_color=self.wcfg["bkg_color_camber"]
+            bar_style_camber = (
+                f"color: {self.wcfg['font_color_camber']};"
+                f"background: {self.wcfg['bkg_color_camber']};"
+                f"{bar_width}"
             )
-            self.bar_camber = self.set_qlabel(
-                text=text_def,
-                style=bar_style_camber,
-                width=bar_width,
-                count=4,
-            )
-            self.set_layout_quad(layout_camber, self.bar_camber)
-            self.set_primary_orient(
-                target=layout_camber,
-                column=self.wcfg["column_index_camber"],
-            )
+            self.bar_camber_fl = QLabel(text_def)
+            self.bar_camber_fl.setAlignment(Qt.AlignCenter)
+            self.bar_camber_fl.setStyleSheet(bar_style_camber)
+            self.bar_camber_fr = QLabel(text_def)
+            self.bar_camber_fr.setAlignment(Qt.AlignCenter)
+            self.bar_camber_fr.setStyleSheet(bar_style_camber)
+            self.bar_camber_rl = QLabel(text_def)
+            self.bar_camber_rl.setAlignment(Qt.AlignCenter)
+            self.bar_camber_rl.setStyleSheet(bar_style_camber)
+            self.bar_camber_rr = QLabel(text_def)
+            self.bar_camber_rr.setAlignment(Qt.AlignCenter)
+            self.bar_camber_rr.setStyleSheet(bar_style_camber)
 
-            if self.wcfg["show_caption"]:
-                cap_camber = self.set_qlabel(
-                    text="camber",
-                    style=bar_style_desc,
-                )
-                layout_camber.addWidget(cap_camber, 0, 0, 1, 0)
+            layout_camber.addWidget(self.bar_camber_fl, 1, 0)
+            layout_camber.addWidget(self.bar_camber_fr, 1, 1)
+            layout_camber.addWidget(self.bar_camber_rl, 2, 0)
+            layout_camber.addWidget(self.bar_camber_rr, 2, 1)
 
         # Toe in
         if self.wcfg["show_toe_in"]:
-            layout_toein = QGridLayout()
-            layout_toein.setSpacing(0)
-            bar_style_toein = self.set_qss(
-                fg_color=self.wcfg["font_color_toe_in"],
-                bg_color=self.wcfg["bkg_color_toe_in"]
+            bar_style_toein = (
+                f"color: {self.wcfg['font_color_toe_in']};"
+                f"background: {self.wcfg['bkg_color_toe_in']};"
+                f"{bar_width}"
             )
-            self.bar_toein = self.set_qlabel(
-                text=text_def,
-                style=bar_style_toein,
-                width=bar_width,
-                count=4,
-            )
-            self.set_layout_quad(layout_toein, self.bar_toein)
-            self.set_primary_orient(
-                target=layout_toein,
-                column=self.wcfg["column_index_toe_in"],
-            )
+            self.bar_toein_fl = QLabel(text_def)
+            self.bar_toein_fl.setAlignment(Qt.AlignCenter)
+            self.bar_toein_fl.setStyleSheet(bar_style_toein)
+            self.bar_toein_fr = QLabel(text_def)
+            self.bar_toein_fr.setAlignment(Qt.AlignCenter)
+            self.bar_toein_fr.setStyleSheet(bar_style_toein)
+            self.bar_toein_rl = QLabel(text_def)
+            self.bar_toein_rl.setAlignment(Qt.AlignCenter)
+            self.bar_toein_rl.setStyleSheet(bar_style_toein)
+            self.bar_toein_rr = QLabel(text_def)
+            self.bar_toein_rr.setAlignment(Qt.AlignCenter)
+            self.bar_toein_rr.setStyleSheet(bar_style_toein)
 
-            if self.wcfg["show_caption"]:
-                cap_toein = self.set_qlabel(
-                    text="toe in",
-                    style=bar_style_desc,
-                )
-                layout_toein.addWidget(cap_toein, 0, 0, 1, 0)
+            layout_toein.addWidget(self.bar_toein_fl, 1, 0)
+            layout_toein.addWidget(self.bar_toein_fr, 1, 1)
+            layout_toein.addWidget(self.bar_toein_rl, 2, 0)
+            layout_toein.addWidget(self.bar_toein_rr, 2, 1)
+
+        # Set layout
+        if self.wcfg["layout"] == 0:
+            # Vertical layout
+            if self.wcfg["show_camber"]:
+                layout.addLayout(layout_camber, column_camber, 0)
+            if self.wcfg["show_toe_in"]:
+                layout.addLayout(layout_toein, column_toein, 0)
+        else:
+            # Horizontal layout
+            if self.wcfg["show_camber"]:
+                layout.addLayout(layout_camber, 0, column_camber)
+            if self.wcfg["show_toe_in"]:
+                layout.addLayout(layout_toein, 0, column_toein)
+        self.setLayout(layout)
 
         # Last data
         self.last_camber = [-1] * 4
         self.last_toein = [-1] * 4
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Camber
             if self.wcfg["show_camber"]:
-                camber = api.read.wheel.camber()
-                for idx in range(4):
-                    camber[idx] = round(calc.rad2deg(camber[idx]), 2)
-                    self.update_wheel(self.bar_camber[idx], camber[idx], self.last_camber[idx])
-                    self.last_camber[idx] = camber[idx]
+                camber = tuple(map(self.round2decimal, api.read.wheel.camber()))
+                self.update_wheel("camber_fl", camber[0], self.last_camber[0])
+                self.update_wheel("camber_fr", camber[1], self.last_camber[1])
+                self.update_wheel("camber_rl", camber[2], self.last_camber[2])
+                self.update_wheel("camber_rr", camber[3], self.last_camber[3])
+                self.last_camber = camber
 
             # Toe in
             if self.wcfg["show_toe_in"]:
-                toein = api.read.wheel.toe_symmetric()
-                for idx in range(4):
-                    toein[idx] = round(calc.rad2deg(toein[idx]), 2)
-                    self.update_wheel(self.bar_toein[idx], toein[idx], self.last_toein[idx])
-                    self.last_toein[idx] = toein[idx]
+                toein = tuple(map(self.round2decimal, api.read.wheel.toe()))
+                self.update_wheel("toein_fl", toein[0], self.last_toein[0])
+                self.update_wheel("toein_fr", -toein[1], self.last_toein[1])
+                self.update_wheel("toein_rl", toein[2], self.last_toein[2])
+                self.update_wheel("toein_rr", -toein[3], self.last_toein[3])
+                self.last_toein = toein
 
     # GUI update methods
-    def update_wheel(self, target_bar, curr, last):
+    def update_wheel(self, suffix, curr, last):
         """Wheel data"""
         if curr != last:
-            target_bar.setText(f"{curr:+.2f}"[:5])
+            getattr(self, f"bar_{suffix}").setText(f"{curr:+.2f}"[:5].rjust(5))
 
-    # GUI generate methods
     @staticmethod
-    def set_layout_quad(layout, bar_set, row_start=1, column_left=0, column_right=9):
-        """Set layout - quad
-
-        Default row index start from 1; reserve row index 0 for caption.
-        """
-        for idx in range(4):
-            layout.addWidget(bar_set[idx], row_start + (idx > 1),
-                column_left + (idx % 2) * column_right)
+    def round2decimal(value):
+        """Round 2 decimal"""
+        return round(calc.rad2deg(value), 2)

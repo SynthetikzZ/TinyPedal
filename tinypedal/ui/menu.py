@@ -22,9 +22,10 @@ Menu
 
 import os
 
-from PySide2.QtGui import QDesktopServices
-from PySide2.QtWidgets import QMenu, QAction, QMessageBox
+from PySide6.QtGui import QDesktopServices, QAction
+from PySide6.QtWidgets import QMenu, QMessageBox
 
+from ..const import PATH_DELTABEST, PATH_ENERGY, PATH_FUEL, PATH_SECTORBEST, PATH_TRACKMAP
 from ..setting import cfg
 from ..api_control import api
 from ..overlay_control import octrl
@@ -94,17 +95,17 @@ class OverlayMenu(QMenu):
     @staticmethod
     def is_locked():
         """Check lock state"""
-        octrl.toggle_lock()
+        octrl.overlay_lock.toggle()
 
     @staticmethod
     def is_hidden():
         """Check hide state"""
-        octrl.toggle_hide()
+        octrl.overlay_hide.toggle()
 
     @staticmethod
     def has_grid():
-        """Check grid move state"""
-        octrl.toggle_grid()
+        """Check hide state"""
+        octrl.overlay_grid.toggle()
 
 
 class ResetDataMenu(QMenu):
@@ -115,7 +116,7 @@ class ResetDataMenu(QMenu):
         self.master = master
 
         # Deltabest
-        reset_deltabest = QAction("Delta best", self)
+        reset_deltabest = QAction("Deltabest", self)
         reset_deltabest.triggered.connect(self.reset_deltabest)
         menu.addAction(reset_deltabest)
 
@@ -142,27 +143,27 @@ class ResetDataMenu(QMenu):
     def reset_deltabest(self):
         """Reset deltabest data"""
         self.__confirmation(
-            "delta best", "csv", cfg.path.delta_best, api.read.check.combo_id())
+            "deltabest", "csv", PATH_DELTABEST, api.read.check.combo_id())
 
     def reset_energydelta(self):
         """Reset energy delta data"""
         self.__confirmation(
-            "energy delta", "energy", cfg.path.energy_delta, api.read.check.combo_id())
+            "energy delta", "energy", PATH_ENERGY, api.read.check.combo_id())
 
     def reset_fueldelta(self):
         """Reset fuel delta data"""
         self.__confirmation(
-            "fuel delta", "fuel", cfg.path.fuel_delta, api.read.check.combo_id())
+            "fuel delta", "fuel", PATH_FUEL, api.read.check.combo_id())
 
     def reset_sectorbest(self):
         """Reset sector best data"""
         self.__confirmation(
-            "sector best", "sector", cfg.path.sector_best, api.read.check.combo_id())
+            "sector best", "sector", PATH_SECTORBEST, api.read.check.combo_id())
 
     def reset_trackmap(self):
         """Reset trackmap data"""
         self.__confirmation(
-            "track map", "svg", cfg.path.track_map, api.read.check.track_id())
+            "track map", "svg", PATH_TRACKMAP, api.read.check.track_id())
 
     def __confirmation(self, data_type: str, file_ext: str, file_path: str, combo_name: str):
         """Message confirmation"""
@@ -203,16 +204,6 @@ class ConfigMenu(QMenu):
         super().__init__(master)
         self.master = master
 
-        config_app = QAction("Application", self)
-        config_app.triggered.connect(self.open_config_application)
-        menu.addAction(config_app)
-
-        config_userpath = QAction("User path", self)
-        config_userpath.triggered.connect(self.open_config_userpath)
-        menu.addAction(config_userpath)
-
-        menu.addSeparator()
-
         config_units = QAction("Units and symbols", self)
         config_units.triggered.connect(self.open_config_units)
         menu.addAction(config_units)
@@ -221,52 +212,32 @@ class ConfigMenu(QMenu):
         config_font.triggered.connect(self.open_config_font)
         menu.addAction(config_font)
 
-        config_sharedmemory = QAction("Shared memory API", self)
-        config_sharedmemory.triggered.connect(self.open_config_sharedmemory)
-        menu.addAction(config_sharedmemory)
+        config_sharedmem = QAction("Shared memory API", self)
+        config_sharedmem.triggered.connect(self.open_config_sharedmemory)
+        menu.addAction(config_sharedmem)
 
         config_compat = QAction("Compatibility", self)
         config_compat.triggered.connect(self.open_config_compatibility)
         menu.addAction(config_compat)
 
-    def open_config_application(self):
-        """Config global application"""
-        _dialog = UserConfig(
-            self.master, "application", "global",
-            cfg.user.config, cfg.default.config)
-        _dialog.open()
-
-    def open_config_userpath(self):
-        """Config global user path"""
-        _dialog = UserConfig(
-            self.master, "user_path", "global",
-            cfg.user.config, cfg.default.config, 300)
-        _dialog.open()
-
     def open_config_font(self):
         """Config global font"""
-        _dialog = FontConfig(self.master, cfg.user.setting)
+        _dialog = FontConfig(self.master)
         _dialog.open()
 
     def open_config_units(self):
         """Config display units"""
-        _dialog = UserConfig(
-            self.master, "units", "misc",
-            cfg.user.setting, cfg.default.setting)
+        _dialog = UserConfig(self.master, "units", "misc")
         _dialog.open()
 
     def open_config_sharedmemory(self):
         """Config sharedmemory"""
-        _dialog = UserConfig(
-            self.master, "shared_memory_api", "api",
-            cfg.user.setting, cfg.default.setting)
+        _dialog = UserConfig(self.master, "shared_memory_api", "api")
         _dialog.open()
 
     def open_config_compatibility(self):
         """Config compatibility"""
-        _dialog = UserConfig(
-            self.master, "compatibility", "misc",
-            cfg.user.setting, cfg.default.setting)
+        _dialog = UserConfig(self.master, "compatibility", "misc")
         _dialog.open()
 
 
@@ -353,20 +324,29 @@ class WindowMenu(QMenu):
     @staticmethod
     def is_show_at_startup():
         """Toggle config window startup state"""
-        cfg.application["show_at_startup"] = not cfg.application["show_at_startup"]
-        cfg.save(filetype="config")
+        if not cfg.application["show_at_startup"]:
+            cfg.application["show_at_startup"] = True
+        else:
+            cfg.application["show_at_startup"] = False
+        cfg.save()
 
     @staticmethod
     def is_minimize_to_tray():
         """Toggle minimize to tray state"""
-        cfg.application["minimize_to_tray"] = not cfg.application["minimize_to_tray"]
-        cfg.save(filetype="config")
+        if not cfg.application["minimize_to_tray"]:
+            cfg.application["minimize_to_tray"] = True
+        else:
+            cfg.application["minimize_to_tray"] = False
+        cfg.save()
 
     @staticmethod
     def is_remember_position():
         """Toggle config window remember position state"""
-        cfg.application["remember_position"] = not cfg.application["remember_position"]
-        cfg.save(filetype="config")
+        if not cfg.application["remember_position"]:
+            cfg.application["remember_position"] = True
+        else:
+            cfg.application["remember_position"] = False
+        cfg.save()
 
 
 class HelpMenu(QMenu):

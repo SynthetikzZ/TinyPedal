@@ -23,9 +23,9 @@ Vehicle class editor
 import time
 import random
 
-from PySide2.QtCore import Qt
-from PySide2.QtGui import QIcon
-from PySide2.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -41,10 +41,10 @@ from PySide2.QtWidgets import (
 from ..api_control import api
 from ..setting import cfg, copy_setting
 from ..const import APP_ICON
-from ..module_control import wctrl
+from ..widget_control import wctrl
 from .. import formatter as fmt
 from .config import (
-    DoubleClickEdit,
+    ColorEdit,
     update_preview_color,
     color_valid,
 )
@@ -144,7 +144,7 @@ class VehicleClassEditor(QDialog):
 
     def __add_option_color(self, key, layout, width):
         """Color string"""
-        color_edit = DoubleClickEdit(mode="color", init=key)
+        color_edit = ColorEdit(key)
         color_edit.setFixedWidth(width)
         color_edit.setMaxLength(9)
         color_edit.setValidator(color_valid)

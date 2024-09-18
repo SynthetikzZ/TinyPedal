@@ -20,8 +20,8 @@
 Suspension position Widget
 """
 
-from PySide2.QtCore import Qt, QRectF
-from PySide2.QtGui import QPainter, QPen
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainter, QPen
 
 from ..api_control import api
 from ._base import Overlay
@@ -29,7 +29,7 @@ from ._base import Overlay
 WIDGET_NAME = "suspension_position"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -52,7 +52,8 @@ class Realtime(Overlay):
         bar_gap = self.wcfg["bar_gap"]
         self.bar_width = max(self.wcfg["bar_width"], 20)
         self.bar_height = int(font_m.capital + pady * 2)
-        self.width_scale = self.bar_width / max(int(self.wcfg["position_max_range"]), 10)
+        self.max_range = max(int(self.wcfg["position_max_range"]), 10)
+        self.width_scale = self.bar_width / self.max_range
 
         self.rect_bg_fl = QRectF(
             0,
@@ -102,9 +103,12 @@ class Realtime(Overlay):
         self.pos_raw = [0] * 4
         self.last_pos_raw = [0] * 4
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Suspension position
             self.pos_raw = api.read.wheel.suspension_deflection()
@@ -140,10 +144,10 @@ class Realtime(Overlay):
         self.susp_pos_rl.setX(self.bar_width - abs(self.pos_raw[2]) * self.width_scale)
         self.susp_pos_rr.setWidth(abs(self.pos_raw[3]) * self.width_scale)
 
-        painter.fillRect(self.susp_pos_fl, self.color_pos(0))
-        painter.fillRect(self.susp_pos_fr, self.color_pos(1))
-        painter.fillRect(self.susp_pos_rl, self.color_pos(2))
-        painter.fillRect(self.susp_pos_rr, self.color_pos(3))
+        painter.fillRect(self.susp_pos_fl, self.color_pos(self.pos_raw[0]))
+        painter.fillRect(self.susp_pos_fr, self.color_pos(self.pos_raw[1]))
+        painter.fillRect(self.susp_pos_rl, self.color_pos(self.pos_raw[2]))
+        painter.fillRect(self.susp_pos_rr, self.color_pos(self.pos_raw[3]))
 
     def draw_readings(self, painter):
         """Draw readings"""
@@ -171,8 +175,8 @@ class Realtime(Overlay):
         )
 
     # Additional methods
-    def color_pos(self, index):
+    def color_pos(self, value):
         """Set suspension position color"""
-        if self.pos_raw[index] < 0:
+        if value < 0:
             return self.wcfg["negative_position_color"]
         return self.wcfg["positive_position_color"]

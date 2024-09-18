@@ -92,29 +92,14 @@ def value_type(value, default):
 
 
 # Folder validate
-def user_data_path(folder_name: str) -> str:
-    """Set user data path, create if not exist"""
+def is_folder_exist(folder_name: str) -> None:
+    """Create folder if not exist"""
     if not os.path.exists(folder_name):
         logger.info("%s folder does not exist, attemp to create", folder_name)
         try:
             os.mkdir(folder_name)
-        except (PermissionError, FileExistsError, FileNotFoundError):
+        except (PermissionError, FileExistsError):
             logger.error("failed to create %s folder", folder_name)
-            return ""
-    return folder_name
-
-
-def relative_path(full_path: str) -> str:
-    """Convert absolute path to relative if path is inside APP root folder"""
-    try:
-        rel_path = os.path.relpath(full_path)
-        if rel_path.startswith(".."):
-            output_path = full_path
-        else:
-            output_path = rel_path
-    except ValueError:
-        output_path = full_path
-    return output_path.replace("\\", "/")
 
 
 # Delta list validate
@@ -137,7 +122,7 @@ def delta_list(data_list: list) -> list:
 # Color validate
 def hex_color(color_str: any) -> bool:
     """Validate HEX color string"""
-    if isinstance(color_str, str) and re.match("#", color_str):
+    if isinstance(color_str, str) and bool(re.match("#", color_str)):
         color = color_str[1:]  # remove left-most sharp sign
         if len(color) in [3,6,8]:
             return re.search(r'[^0-9A-F]', color, flags=re.IGNORECASE) is None

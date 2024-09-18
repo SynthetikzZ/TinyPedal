@@ -20,7 +20,7 @@
 Module & widget list view
 """
 
-from PySide2.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -28,7 +28,6 @@ from PySide2.QtWidgets import (
     QPushButton,
     QListWidget,
     QListWidgetItem,
-    QMessageBox
 )
 
 from ..setting import cfg
@@ -64,14 +63,18 @@ QSS_BUTTON_CONFIG = (
 class ModuleList(QWidget):
     """Module & widget list view"""
 
-    def __init__(self, module_control: object):
+    def __init__(self, module_control: object, module_list: dict, module_type: str = ""):
         """Initialize module list setting
 
         Args:
             module_control: Module control (or widget) object.
+            module_list: Active list that contains module (or widget) instances.
+            module_type: "module" (or "widget").
         """
         super().__init__()
         self.module_control = module_control
+        self.module_list = module_list
+        self.module_type = module_type
 
         # Label
         self.label_loaded = QLabel("")
@@ -105,7 +108,7 @@ class ModuleList(QWidget):
 
     def create_list(self):
         """Create module list"""
-        for _name in self.module_control.name_list:
+        for _name in self.module_control.PACK.keys():
             module_item = ListItemControl(self, _name, self.module_control)
             self.listbox_buttons.append(module_item)
             item = QListWidgetItem()
@@ -120,34 +123,19 @@ class ModuleList(QWidget):
     def refresh_label(self):
         """Refresh label text"""
         self.label_loaded.setText(
-            f"Enabled: <b>{self.module_control.count_active}/{self.module_control.count_total}</b>")
+            f"Enabled: <b>{len(self.module_list)}/{len(self.module_control.PACK)}</b>")
 
     def module_button_enable_all(self):
         """Enable all modules"""
-        if self.module_control.count_active != self.module_control.count_total:
-            if self.confirm_batch_toggle("Enable"):
-                self.module_control.enable_all()
-                self.refresh_state()
+        if len(self.module_list) != len(self.module_control.PACK):
+            self.module_control.enable_all()
+            self.refresh_state()
 
     def module_button_disable_all(self):
         """Disable all modules"""
-        if self.module_control.count_active:
-            if self.confirm_batch_toggle("Disable"):
-                self.module_control.disable_all()
-                self.refresh_state()
-
-    def confirm_batch_toggle(self, confirm_type: str):
-        """Batch toggle confirmation"""
-        if not cfg.application["show_confirmation_for_batch_toggle"]:
-            return True
-        message_text = (
-            f"Are you sure you want to <b>{confirm_type}</b> all "
-            f"{self.module_control.type_id}s?"
-        )
-        confirm_msg = QMessageBox.question(
-            self, "Confirm", message_text,
-            buttons=QMessageBox.Yes | QMessageBox.No)
-        return confirm_msg == QMessageBox.Yes
+        if self.module_list:
+            self.module_control.disable_all()
+            self.refresh_state()
 
 
 class ListItemControl(QWidget):
@@ -213,7 +201,5 @@ class ListItemControl(QWidget):
 
     def open_config_dialog(self):
         """Config dialog"""
-        _dialog = UserConfig(
-            self.master, self.module_name, self.module_control.type_id,
-            cfg.user.setting, cfg.default.setting)
+        _dialog = UserConfig(self.master, self.module_name, self.master.module_type)
         _dialog.open()

@@ -20,10 +20,11 @@
 Cruise Widget
 """
 
-from time import strftime, gmtime
+import time
+from functools import partial
 
-from PySide2.QtCore import Qt
-from PySide2.QtWidgets import QGridLayout
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGridLayout, QLabel
 
 from .. import calculation as calc
 from ..api_control import api
@@ -33,7 +34,7 @@ from ._base import Overlay
 WIDGET_NAME = "cruise"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -47,8 +48,6 @@ class Realtime(Overlay):
         # Config variable
         bar_padx = round(self.wcfg["font_size"] * self.wcfg["bar_padding"]) * 2
         bar_gap = self.wcfg["bar_gap"]
-        self.odm_digits = max(int(self.wcfg["odometer_maximum_digits"]), 1)
-        self.odm_range = float(self.odm_digits * "9") + 0.9
 
         # Base style
         self.setStyleSheet(
@@ -62,85 +61,81 @@ class Realtime(Overlay):
         layout.setContentsMargins(0,0,0,0)  # remove border
         layout.setSpacing(bar_gap)
         layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.setLayout(layout)
+
+        column_trkc = self.wcfg["column_index_track_clock"]
+        column_comp = self.wcfg["column_index_compass"]
+        column_evel = self.wcfg["column_index_elevation"]
+        column_odom = self.wcfg["column_index_odometer"]
 
         # Track clock
         if self.wcfg["show_track_clock"]:
-            text_clock = self.format_clock(0)
-            bar_style_track_clock = self.set_qss(
-                fg_color=self.wcfg["font_color_track_clock"],
-                bg_color=self.wcfg["bkg_color_track_clock"]
-            )
-            self.bar_track_clock = self.set_qlabel(
-                text=text_clock,
-                style=bar_style_track_clock,
-                width=font_m.width * len(text_clock) + bar_padx,
-            )
-            self.set_primary_orient(
-                target=self.bar_track_clock,
-                column=self.wcfg["column_index_track_clock"],
+            clock_text = self.format_clock(0)
+            self.bar_track_clock = QLabel(clock_text)
+            self.bar_track_clock.setAlignment(Qt.AlignCenter)
+            self.bar_track_clock.setStyleSheet(
+                f"color: {self.wcfg['font_color_track_clock']};"
+                f"background: {self.wcfg['bkg_color_track_clock']};"
+                f"min-width: {font_m.width * len(clock_text) + bar_padx}px;"
             )
 
         # Compass
         if self.wcfg["show_compass"]:
-            text_compass = self.format_compass(0)
-            bar_style_compass = self.set_qss(
-                fg_color=self.wcfg["font_color_compass"],
-                bg_color=self.wcfg["bkg_color_compass"]
-            )
-            self.bar_compass = self.set_qlabel(
-                text=text_compass,
-                style=bar_style_compass,
-                width=font_m.width * len(text_compass) + bar_padx,
-            )
-            self.set_primary_orient(
-                target=self.bar_compass,
-                column=self.wcfg["column_index_compass"],
+            compass_text = self.format_compass(0)
+            self.bar_compass = QLabel(compass_text)
+            self.bar_compass.setAlignment(Qt.AlignCenter)
+            self.bar_compass.setStyleSheet(
+                f"color: {self.wcfg['font_color_compass']};"
+                f"background: {self.wcfg['bkg_color_compass']};"
+                f"min-width: {font_m.width * len(compass_text) + bar_padx}px;"
             )
 
         # Elevation
         if self.wcfg["show_elevation"]:
-            text_elevation = self.format_elevation(0)
-            bar_style_elevation = self.set_qss(
-                fg_color=self.wcfg["font_color_elevation"],
-                bg_color=self.wcfg["bkg_color_elevation"]
-            )
-            self.bar_elevation = self.set_qlabel(
-                text=text_elevation,
-                style=bar_style_elevation,
-                width=font_m.width * len(text_elevation) + bar_padx,
-            )
-            self.set_primary_orient(
-                target=self.bar_elevation,
-                column=self.wcfg["column_index_elevation"],
+            elevation_text = self.format_elevation(0)
+            self.bar_elevation = QLabel(elevation_text)
+            self.bar_elevation.setAlignment(Qt.AlignCenter)
+            self.bar_elevation.setStyleSheet(
+                f"color: {self.wcfg['font_color_elevation']};"
+                f"background: {self.wcfg['bkg_color_elevation']};"
+                f"min-width: {font_m.width * len(elevation_text) + bar_padx}px;"
             )
 
         # Odometer
         if self.wcfg["show_odometer"]:
-            text_odometer = self.format_odometer(0)
-            bar_style_odometer = self.set_qss(
-                fg_color=self.wcfg["font_color_odometer"],
-                bg_color=self.wcfg["bkg_color_odometer"]
+            odometer_text = self.format_odometer(0)
+            self.odometer_width = partial(
+                calc.qss_min_width,
+                style=f"color: {self.wcfg['font_color_odometer']};background: {self.wcfg['bkg_color_odometer']};",
+                font_width=font_m.width,
+                padding=bar_padx,
             )
-            self.bar_odometer = self.set_qlabel(
-                text=text_odometer,
-                style=bar_style_odometer,
-                width=font_m.width * len(text_odometer) + bar_padx,
-            )
-            self.set_primary_orient(
-                target=self.bar_odometer,
-                column=self.wcfg["column_index_odometer"],
-            )
+            self.bar_odometer = QLabel(odometer_text)
+            self.bar_odometer.setAlignment(Qt.AlignCenter)
+            self.bar_odometer.setStyleSheet(self.odometer_width(len(odometer_text)))
+
+        # Set layout
+        if self.wcfg["show_track_clock"]:
+            layout.addWidget(self.bar_track_clock, 0, column_trkc)
+        if self.wcfg["show_compass"]:
+            layout.addWidget(self.bar_compass, 0, column_comp)
+        if self.wcfg["show_elevation"]:
+            layout.addWidget(self.bar_elevation, 0, column_evel)
+        if self.wcfg["show_odometer"]:
+            layout.addWidget(self.bar_odometer, 0, column_odom)
+        self.setLayout(layout)
 
         # Last data
         self.last_track_time = None
-        self.last_orientation = None
+        self.last_dir_degree = None
         self.last_elevation = None
         self.last_traveled_distance = None
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Track clock
             if self.wcfg["show_track_clock"]:
@@ -151,26 +146,28 @@ class Realtime(Overlay):
                 else:
                     time_scale = self.wcfg["track_clock_time_scale"]
 
-                track_time = calc.clock_time(
-                    api.read.session.elapsed(), api.read.session.start(), time_scale)
+                track_time = int(calc.clock_time(
+                    api.read.session.elapsed(),
+                    api.read.session.start(),
+                    time_scale))
                 self.update_track_clock(track_time, self.last_track_time)
                 self.last_track_time = track_time
 
             # Compass
             if self.wcfg["show_compass"]:
-                orientation = api.read.vehicle.orientation_yaw_radians()
-                self.update_compass(orientation, self.last_orientation)
-                self.last_orientation = orientation
+                dir_degree = self.format_compass(180 - calc.rad2deg(api.read.vehicle.orientation_yaw_radians()))
+                self.update_compass(dir_degree, self.last_dir_degree)
+                self.last_dir_degree = dir_degree
 
             # Elevation
             if self.wcfg["show_elevation"]:
-                elevation = api.read.vehicle.position_vertical()
+                elevation = self.format_elevation(api.read.vehicle.position_vertical())
                 self.update_elevation(elevation, self.last_elevation)
                 self.last_elevation = elevation
 
             # Odometer
             if self.wcfg["show_odometer"]:
-                traveled_distance = int(minfo.delta.metersDriven)
+                traveled_distance = self.format_odometer(minfo.delta.metersDriven)
                 self.update_odometer(traveled_distance, self.last_traveled_distance)
                 self.last_traveled_distance = traveled_distance
 
@@ -183,43 +180,41 @@ class Realtime(Overlay):
     def update_compass(self, curr, last):
         """Compass"""
         if curr != last:
-            self.bar_compass.setText(self.format_compass(curr))
+            self.bar_compass.setText(curr)
 
     def update_elevation(self, curr, last):
         """Elevation"""
         if curr != last:
-            self.bar_elevation.setText(self.format_elevation(curr))
+            self.bar_elevation.setText(curr)
 
     def update_odometer(self, curr, last):
         """Odometer"""
         if curr != last:
-            self.bar_odometer.setText(self.format_odometer(curr))
+            self.bar_odometer.setText(curr)
+            self.bar_odometer.setStyleSheet(self.odometer_width(len(curr)))
 
     # Additional methods
     def format_clock(self, second):
         """Format clock"""
-        return strftime(self.wcfg["track_clock_format"], gmtime(second))
+        return time.strftime(self.wcfg["track_clock_format"], time.gmtime(second))
 
-    def format_compass(self, yaw):
+    def format_compass(self, degree):
         """Format compass"""
-        degree = 180 - calc.rad2deg(yaw)
         return f"{degree:03.0f}°{self.deg2direction(degree)}"
 
     def format_elevation(self, meter):
         """Format elevation"""
         if self.cfg.units["distance_unit"] == "Feet":
-            return f"↑{calc.meter2feet(meter): >5.0f}ft"
-        return f"↑{meter: >4.0f}m"
+            return f"↑{calc.meter2feet(meter):5.0f}ft".rjust(8)
+        return f"↑{meter:4.0f}m".rjust(6)
 
     def format_odometer(self, meter):
         """Format odometer"""
         if self.cfg.units["odometer_unit"] == "Kilometer":
-            distance = min(calc.meter2kilometer(meter), self.odm_range)
-            return f"{distance: >{self.odm_digits + 2}.1f}km"
+            return f"{calc.meter2kilometer(meter):6.1f}km"
         if self.cfg.units["odometer_unit"] == "Mile":
-            distance = min(calc.meter2mile(meter), self.odm_range)
-            return f"{distance: >{self.odm_digits + 2}.1f}mi"
-        return f"{min(meter, int(self.odm_range)): >{self.odm_digits}d}m"
+            return f"{calc.meter2mile(meter):6.1f}mi"
+        return f"{meter:7.0f}m"
 
     @staticmethod
     def deg2direction(degrees):

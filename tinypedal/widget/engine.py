@@ -20,8 +20,8 @@
 Engine Widget
 """
 
-from PySide2.QtCore import Qt
-from PySide2.QtWidgets import QGridLayout
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGridLayout, QLabel
 
 from .. import calculation as calc
 from ..api_control import api
@@ -30,7 +30,7 @@ from ._base import Overlay
 WIDGET_NAME = "engine"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -44,13 +44,14 @@ class Realtime(Overlay):
         # Config variable
         bar_padx = round(self.wcfg["font_size"] * self.wcfg["bar_padding"]) * 2
         bar_gap = self.wcfg["bar_gap"]
-        bar_width = font_m.width * 8 + bar_padx
+        bar_width = f"min-width: {font_m.width * 8 + bar_padx}px;"
 
         # Base style
         self.setStyleSheet(
             f"font-family: {self.wcfg['font_name']};"
             f"font-size: {self.wcfg['font_size']}px;"
             f"font-weight: {self.wcfg['font_weight']};"
+            f"{bar_width}"
         )
 
         # Create layout
@@ -58,127 +59,109 @@ class Realtime(Overlay):
         layout.setContentsMargins(0,0,0,0)  # remove border
         layout.setSpacing(bar_gap)
         layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.setLayout(layout)
+
+        column_oil = self.wcfg["column_index_oil"]
+        column_water = self.wcfg["column_index_water"]
+        column_turbo = self.wcfg["column_index_turbo"]
+        column_rpm = self.wcfg["column_index_rpm"]
+        column_rpm_max = self.wcfg["column_index_rpm_maximum"]
+        column_torque = self.wcfg["column_index_torque"]
+        column_power = self.wcfg["column_index_power"]
 
         # Oil temperature
-        if self.wcfg["show_oil_temperature"]:
-            self.bar_style_oil = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_oil"],
-                    bg_color=self.wcfg["bkg_color_oil"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_oil"],
-                    bg_color=self.wcfg["warning_color_overheat"])
-            )
-            self.bar_oil = self.set_qlabel(
-                text="Oil T",
-                style=self.bar_style_oil[0],
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_oil,
-                column=self.wcfg["column_index_oil"],
+        if self.wcfg["show_temperature"]:
+            self.bar_oil = QLabel("Oil T")
+            self.bar_oil.setAlignment(Qt.AlignCenter)
+            self.bar_oil.setStyleSheet(
+                f"color: {self.wcfg['font_color_oil']};"
+                f"background: {self.wcfg['bkg_color_oil']};"
             )
 
-        # Water temperature
-        if self.wcfg["show_water_temperature"]:
-            self.bar_style_water = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_water"],
-                    bg_color=self.wcfg["bkg_color_water"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_water"],
-                    bg_color=self.wcfg["warning_color_overheat"])
-            )
-            self.bar_water = self.set_qlabel(
-                text="Water T",
-                style=self.bar_style_water[0],
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_water,
-                column=self.wcfg["column_index_water"],
+            # Water temperature
+            self.bar_water = QLabel("Water T")
+            self.bar_water.setAlignment(Qt.AlignCenter)
+            self.bar_water.setStyleSheet(
+                f"color: {self.wcfg['font_color_water']};"
+                f"background: {self.wcfg['bkg_color_water']};"
             )
 
         # Turbo pressure
         if self.wcfg["show_turbo_pressure"]:
-            bar_style_turbo = self.set_qss(
-                fg_color=self.wcfg["font_color_turbo"],
-                bg_color=self.wcfg["bkg_color_turbo"]
-            )
-            self.bar_turbo = self.set_qlabel(
-                text="Turbo",
-                style=bar_style_turbo,
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_turbo,
-                column=self.wcfg["column_index_turbo"],
+            self.bar_turbo = QLabel("Turbo")
+            self.bar_turbo.setAlignment(Qt.AlignCenter)
+            self.bar_turbo.setStyleSheet(
+                f"color: {self.wcfg['font_color_turbo']};"
+                f"background: {self.wcfg['bkg_color_turbo']};"
             )
 
         # Engine RPM
         if self.wcfg["show_rpm"]:
-            bar_style_rpm = self.set_qss(
-                fg_color=self.wcfg["font_color_rpm"],
-                bg_color=self.wcfg["bkg_color_rpm"]
-            )
-            self.bar_rpm = self.set_qlabel(
-                text="RPM",
-                style=bar_style_rpm,
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_rpm,
-                column=self.wcfg["column_index_rpm"],
+            self.bar_rpm = QLabel("RPM")
+            self.bar_rpm.setAlignment(Qt.AlignCenter)
+            self.bar_rpm.setStyleSheet(
+                f"color: {self.wcfg['font_color_rpm']};"
+                f"background: {self.wcfg['bkg_color_rpm']};"
             )
 
         # Engine RPM maximum
         if self.wcfg["show_rpm_maximum"]:
-            bar_style_rpm_max = self.set_qss(
-                fg_color=self.wcfg["font_color_rpm_maximum"],
-                bg_color=self.wcfg["bkg_color_rpm_maximum"]
-            )
-            self.bar_rpm_max = self.set_qlabel(
-                text="MAX RPM",
-                style=bar_style_rpm_max,
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_rpm_max,
-                column=self.wcfg["column_index_rpm_maximum"],
+            self.bar_rpm_max = QLabel("MAX RPM")
+            self.bar_rpm_max.setAlignment(Qt.AlignCenter)
+            self.bar_rpm_max.setStyleSheet(
+                f"color: {self.wcfg['font_color_rpm_maximum']};"
+                f"background: {self.wcfg['bkg_color_rpm_maximum']};"
             )
 
         # Engine torque
         if self.wcfg["show_torque"]:
-            bar_style_torque = self.set_qss(
-                fg_color=self.wcfg["font_color_torque"],
-                bg_color=self.wcfg["bkg_color_torque"]
-            )
-            self.bar_torque = self.set_qlabel(
-                text="TORQUE",
-                style=bar_style_torque,
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_torque,
-                column=self.wcfg["column_index_torque"],
+            self.bar_torque = QLabel("TORQUE")
+            self.bar_torque.setAlignment(Qt.AlignCenter)
+            self.bar_torque.setStyleSheet(
+                f"color: {self.wcfg['font_color_torque']};"
+                f"background: {self.wcfg['bkg_color_torque']};"
             )
 
         # Engine power
         if self.wcfg["show_power"]:
-            bar_style_power = self.set_qss(
-                fg_color=self.wcfg["font_color_power"],
-                bg_color=self.wcfg["bkg_color_power"]
+            self.bar_power = QLabel("POWER")
+            self.bar_power.setAlignment(Qt.AlignCenter)
+            self.bar_power.setStyleSheet(
+                f"color: {self.wcfg['font_color_power']};"
+                f"background: {self.wcfg['bkg_color_power']};"
             )
-            self.bar_power = self.set_qlabel(
-                text="POWER",
-                style=bar_style_power,
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_power,
-                column=self.wcfg["column_index_power"],
-            )
+
+        # Set layout
+        if self.wcfg["layout"] == 0:
+            # Vertical layout
+            if self.wcfg["show_temperature"]:
+                layout.addWidget(self.bar_oil, column_oil, 0)
+                layout.addWidget(self.bar_water, column_water, 0)
+            if self.wcfg["show_turbo_pressure"]:
+                layout.addWidget(self.bar_turbo, column_turbo, 0)
+            if self.wcfg["show_rpm"]:
+                layout.addWidget(self.bar_rpm, column_rpm, 0)
+            if self.wcfg["show_rpm_maximum"]:
+                layout.addWidget(self.bar_rpm_max, column_rpm_max, 0)
+            if self.wcfg["show_torque"]:
+                layout.addWidget(self.bar_torque, column_torque, 0)
+            if self.wcfg["show_power"]:
+                layout.addWidget(self.bar_power, column_power, 0)
+        else:
+            # Horizontal layout
+            if self.wcfg["show_temperature"]:
+                layout.addWidget(self.bar_oil, 0, column_oil)
+                layout.addWidget(self.bar_water, 0, column_water)
+            if self.wcfg["show_turbo_pressure"]:
+                layout.addWidget(self.bar_turbo, 0, column_turbo)
+            if self.wcfg["show_rpm"]:
+                layout.addWidget(self.bar_rpm, 0, column_rpm)
+            if self.wcfg["show_rpm_maximum"]:
+                layout.addWidget(self.bar_rpm_max, 0, column_rpm_max)
+            if self.wcfg["show_torque"]:
+                layout.addWidget(self.bar_torque, 0, column_torque)
+            if self.wcfg["show_power"]:
+                layout.addWidget(self.bar_power, 0, column_power)
+        self.setLayout(layout)
 
         # Last data
         self.last_temp_oil = None
@@ -189,19 +172,22 @@ class Realtime(Overlay):
         self.last_torque = None
         self.last_power = None
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
-            # Oil temperature
-            if self.wcfg["show_oil_temperature"]:
-                temp_oil = round(api.read.engine.oil_temperature(), 2)
+            # Temperature
+            if self.wcfg["show_temperature"]:
+                # Oil temperature
+                temp_oil = round(api.read.engine.oil_temperature(), 1)
                 self.update_oil(temp_oil, self.last_temp_oil)
                 self.last_temp_oil = temp_oil
 
-            # Water temperature
-            if self.wcfg["show_water_temperature"]:
-                temp_water = round(api.read.engine.water_temperature(), 2)
+                # Water temperature
+                temp_water = round(api.read.engine.water_temperature(), 1)
                 self.update_water(temp_water, self.last_temp_water)
                 self.last_temp_water = temp_water
 
@@ -240,24 +226,36 @@ class Realtime(Overlay):
     def update_oil(self, curr, last):
         """Oil temperature"""
         if curr != last:
+            if curr < self.wcfg["overheat_threshold_oil"]:
+                color = (f"color: {self.wcfg['font_color_oil']};"
+                         f"background: {self.wcfg['bkg_color_oil']};")
+            else:
+                color = (f"color: {self.wcfg['font_color_oil']};"
+                         f"background: {self.wcfg['warning_color_overheat']};")
+
             if self.cfg.units["temperature_unit"] == "Fahrenheit":
                 curr = calc.celsius2fahrenheit(curr)
 
-            self.bar_oil.setText(f"O{curr: >6.1f}°")
-            self.bar_oil.setStyleSheet(
-                self.bar_style_oil[curr >= self.wcfg["overheat_threshold_oil"]]
-            )
+            format_text = f"{curr:.1f}°"[:7].rjust(7)
+            self.bar_oil.setText(f"O{format_text}")
+            self.bar_oil.setStyleSheet(color)
 
     def update_water(self, curr, last):
         """Water temperature"""
         if curr != last:
+            if curr < self.wcfg["overheat_threshold_water"]:
+                color = (f"color: {self.wcfg['font_color_water']};"
+                         f"background: {self.wcfg['bkg_color_water']};")
+            else:
+                color = (f"color: {self.wcfg['font_color_water']};"
+                         f"background: {self.wcfg['warning_color_overheat']};")
+
             if self.cfg.units["temperature_unit"] == "Fahrenheit":
                 curr = calc.celsius2fahrenheit(curr)
 
-            self.bar_water.setText(f"W{curr: >6.1f}°")
-            self.bar_water.setStyleSheet(
-                self.bar_style_water[curr >= self.wcfg["overheat_threshold_water"]]
-            )
+            format_text = f"{curr:.1f}°"[:7].rjust(7)
+            self.bar_water.setText(f"W{format_text}")
+            self.bar_water.setStyleSheet(color)
 
     def update_turbo(self, curr, last):
         """Turbo pressure"""
@@ -267,18 +265,18 @@ class Realtime(Overlay):
     def update_rpm(self, curr, last):
         """Engine RPM"""
         if curr != last:
-            self.bar_rpm.setText(f"{curr: >5}rpm")
+            self.bar_rpm.setText(f"{curr: =05.0f}rpm")
 
     def update_rpm_max(self, curr, last):
         """Engine RPM maximum"""
         if curr != last:
-            self.bar_rpm_max.setText(f"{curr: >5}max")
+            self.bar_rpm_max.setText(f"{curr: =05.0f}max")
 
     def update_torque(self, curr, last):
         """Engine torque"""
         if curr != last:
-            text = f"{curr: >6.2f}"[:6]
-            self.bar_torque.setText(f"{text}Nm")
+            format_text = f"{curr:.2f}"[:6].rjust(6)
+            self.bar_torque.setText(f"{format_text}Nm")
 
     def update_power(self, curr, last):
         """Engine power"""
@@ -297,10 +295,10 @@ class Realtime(Overlay):
     def power_units(self, power):
         """Power units"""
         if self.cfg.units["power_unit"] == "Kilowatt":
-            text = f"{power: >6.2f}"[:6]
+            text = f"{power:.2f}"[:6].rjust(6)
             return f"{text}kW"
         if self.cfg.units["power_unit"] == "Horsepower":
-            text = f"{calc.kw2hp(power): >6.2f}"[:6]
+            text = f"{calc.kw2hp(power):.2f}"[:6].rjust(6)
             return f"{text}hp"
-        text = f"{calc.kw2ps(power): >6.2f}"[:6]
+        text = f"{calc.kw2ps(power):.2f}"[:6].rjust(6)
         return f"{text}ps"

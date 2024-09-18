@@ -20,16 +20,17 @@
 Battery Widget
 """
 
-from PySide2.QtCore import Qt
-from PySide2.QtWidgets import QGridLayout
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGridLayout, QLabel
 
+from ..api_control import api
 from ..module_info import minfo
 from ._base import Overlay
 
 WIDGET_NAME = "battery"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -43,7 +44,7 @@ class Realtime(Overlay):
         # Config variable
         bar_padx = round(self.wcfg["font_size"] * self.wcfg["bar_padding"]) * 2
         bar_gap = self.wcfg["bar_gap"]
-        bar_width = font_m.width * 8 + bar_padx
+        bar_width = f"min-width: {font_m.width * 8 + bar_padx}px;"
         self.freeze_duration = min(max(self.wcfg["freeze_duration"], 0), 30)
 
         # Base style
@@ -51,6 +52,7 @@ class Realtime(Overlay):
             f"font-family: {self.wcfg['font_name']};"
             f"font-size: {self.wcfg['font_size']}px;"
             f"font-weight: {self.wcfg['font_weight']};"
+            f"{bar_width}"
         )
 
         # Create layout
@@ -58,93 +60,98 @@ class Realtime(Overlay):
         layout.setContentsMargins(0,0,0,0)  # remove border
         layout.setSpacing(bar_gap)
         layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.setLayout(layout)
+
+        column_bc = self.wcfg["column_index_battery_charge"]
+        column_bd = self.wcfg["column_index_battery_drain"]
+        column_br = self.wcfg["column_index_battery_regen"]
+        column_at = self.wcfg["column_index_activation_timer"]
 
         # Battery charge
         if self.wcfg["show_battery_charge"]:
-            self.bar_style_charge = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_battery_charge"],
-                    bg_color=self.wcfg["bkg_color_battery_charge"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_battery_charge"],
-                    bg_color=self.wcfg["warning_color_low_battery"])
-            )
-            self.bar_charge = self.set_qlabel(
-                text="BATTERY",
-                style=self.bar_style_charge[0],
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_charge,
-                column=self.wcfg["column_index_battery_charge"],
+            self.bar_battery_charge = QLabel("BATTERY")
+            self.bar_battery_charge.setAlignment(Qt.AlignCenter)
+            self.bar_battery_charge.setStyleSheet(
+                f"color: {self.wcfg['font_color_battery_charge']};"
+                f"background: {self.wcfg['bkg_color_battery_charge']};"
             )
 
         # Battery drain
         if self.wcfg["show_battery_drain"]:
-            bar_style_drain = self.set_qss(
-                fg_color=self.wcfg["font_color_battery_drain"],
-                bg_color=self.wcfg["bkg_color_battery_drain"]
-            )
-            self.bar_drain = self.set_qlabel(
-                text="B DRAIN",
-                style=bar_style_drain,
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_drain,
-                column=self.wcfg["column_index_battery_drain"],
+            self.bar_battery_drain = QLabel("B DRAIN")
+            self.bar_battery_drain.setAlignment(Qt.AlignCenter)
+            self.bar_battery_drain.setStyleSheet(
+                f"color: {self.wcfg['font_color_battery_drain']};"
+                f"background: {self.wcfg['bkg_color_battery_drain']};"
             )
 
         # Battery regen
         if self.wcfg["show_battery_regen"]:
-            bar_style_regen = self.set_qss(
-                fg_color=self.wcfg["font_color_battery_regen"],
-                bg_color=self.wcfg["bkg_color_battery_regen"]
-            )
-            self.bar_regen = self.set_qlabel(
-                text="B REGEN",
-                style=bar_style_regen,
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_regen,
-                column=self.wcfg["column_index_battery_regen"],
+            self.bar_battery_regen = QLabel("B REGEN")
+            self.bar_battery_regen.setAlignment(Qt.AlignCenter)
+            self.bar_battery_regen.setStyleSheet(
+                f"color: {self.wcfg['font_color_battery_regen']};"
+                f"background: {self.wcfg['bkg_color_battery_regen']};"
             )
 
         # Activation timer
         if self.wcfg["show_activation_timer"]:
-            bar_style_timer = self.set_qss(
-                fg_color=self.wcfg["font_color_activation_timer"],
-                bg_color=self.wcfg["bkg_color_activation_timer"]
-            )
-            self.bar_timer = self.set_qlabel(
-                text="B TIMER",
-                style=bar_style_timer,
-                width=bar_width,
-            )
-            self.set_primary_orient(
-                target=self.bar_timer,
-                column=self.wcfg["column_index_activation_timer"],
+            self.bar_activation_timer = QLabel("B TIMER")
+            self.bar_activation_timer.setAlignment(Qt.AlignCenter)
+            self.bar_activation_timer.setStyleSheet(
+                f"color: {self.wcfg['font_color_activation_timer']};"
+                f"background: {self.wcfg['bkg_color_activation_timer']};"
             )
 
+        # Set layout
+        if self.wcfg["layout"] == 0:
+            # Vertical layout
+            if self.wcfg["show_battery_charge"]:
+                layout.addWidget(self.bar_battery_charge, column_bc, 0)
+            if self.wcfg["show_battery_drain"]:
+                layout.addWidget(self.bar_battery_drain, column_bd, 0)
+            if self.wcfg["show_battery_regen"]:
+                layout.addWidget(self.bar_battery_regen, column_br, 0)
+            if self.wcfg["show_activation_timer"]:
+                layout.addWidget(self.bar_activation_timer, column_at, 0)
+        else:
+            # Horizontal layout
+            if self.wcfg["show_battery_charge"]:
+                layout.addWidget(self.bar_battery_charge, 0, column_bc)
+            if self.wcfg["show_battery_drain"]:
+                layout.addWidget(self.bar_battery_drain, 0, column_bd)
+            if self.wcfg["show_battery_regen"]:
+                layout.addWidget(self.bar_battery_regen, 0, column_br)
+            if self.wcfg["show_activation_timer"]:
+                layout.addWidget(self.bar_activation_timer, 0, column_at)
+        self.setLayout(layout)
+
         # Last data
+        self.last_lap_stime = 0  # last lap start time
+
         self.last_battery_charge = None
         self.last_battery_drain = None
         self.last_battery_regen = None
         self.last_motor_active_timer = None
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
+
+            lap_stime = api.read.timing.start()
+            lap_etime = api.read.timing.elapsed()
 
             # Battery charge & usage
             if self.wcfg["show_battery_charge"]:
-                self.update_charge(
+                self.update_battery_charge(
                     minfo.hybrid.batteryCharge, self.last_battery_charge)
-                self.last_battery_charge = minfo.hybrid.batteryCharge
 
-            if 0 <= minfo.delta.lapTimeCurrent < self.freeze_duration:
+            if lap_stime != self.last_lap_stime:
+                laptime_curr = lap_etime - lap_stime
+                if laptime_curr >= self.freeze_duration or laptime_curr < 0:
+                    self.last_lap_stime = lap_stime
                 battery_drain = minfo.hybrid.batteryDrainLast
                 battery_regen = minfo.hybrid.batteryRegenLast
             else:
@@ -152,39 +159,50 @@ class Realtime(Overlay):
                 battery_regen = minfo.hybrid.batteryRegen
 
             if self.wcfg["show_battery_drain"]:
-                self.update_drain(battery_drain, self.last_battery_drain)
+                self.update_battery_drain(battery_drain, self.last_battery_drain)
                 self.last_battery_drain = battery_drain
 
             if self.wcfg["show_battery_regen"]:
-                self.update_regen(battery_regen, self.last_battery_regen)
+                self.update_battery_regen(battery_regen, self.last_battery_regen)
                 self.last_battery_regen = battery_regen
+
+            self.last_battery_charge = minfo.hybrid.batteryCharge
 
             # Motor activation timer
             if self.wcfg["show_activation_timer"]:
-                self.update_timer(
+                self.update_activation_timer(
                     minfo.hybrid.motorActiveTimer, self.last_motor_active_timer)
                 self.last_motor_active_timer = minfo.hybrid.motorActiveTimer
 
     # GUI update methods
-    def update_charge(self, curr, last):
+    def update_battery_charge(self, curr, last):
         """Battery charge"""
         if curr != last:
-            self.bar_charge.setText(f"B{curr: >7.2f}"[:8])
-            self.bar_charge.setStyleSheet(
-                self.bar_style_charge[curr <= self.wcfg["low_battery_threshold"]])
+            if curr > self.wcfg["low_battery_threshold"]:
+                color = (f"color: {self.wcfg['font_color_battery_charge']};"
+                         f"background: {self.wcfg['bkg_color_battery_charge']};")
+            else:
+                color = (f"color: {self.wcfg['font_color_battery_charge']};"
+                         f"background: {self.wcfg['warning_color_low_battery']};")
 
-    def update_drain(self, curr, last):
+            format_text = f"{curr:.2f}"[:7].rjust(7)
+            self.bar_battery_charge.setText(f"B{format_text}")
+            self.bar_battery_charge.setStyleSheet(color)
+
+    def update_battery_drain(self, curr, last):
         """Battery drain"""
         if curr != last:
-            self.bar_drain.setText(f"-{curr: >7.2f}"[:8])
+            format_text = f"{curr:.2f}"[:7].rjust(7)
+            self.bar_battery_drain.setText(f"-{format_text}")
 
-    def update_regen(self, curr, last):
+    def update_battery_regen(self, curr, last):
         """Battery regen"""
         if curr != last:
-            self.bar_regen.setText(f"+{curr: >7.2f}"[:8])
+            format_text = f"{curr:.2f}"[:7].rjust(7)
+            self.bar_battery_regen.setText(f"+{format_text}")
 
-    def update_timer(self, curr, last):
+    def update_activation_timer(self, curr, last):
         """Motor activation timer"""
         if curr != last:
-            format_text = f"{curr: >7.2f}"[:7]
-            self.bar_timer.setText(f"{format_text}s")
+            format_text = f"{curr:.2f}"[:7].rjust(7)
+            self.bar_activation_timer.setText(f"{format_text}s")

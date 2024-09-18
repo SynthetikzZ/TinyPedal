@@ -24,25 +24,19 @@ import logging
 
 from .setting import cfg
 from .api_control import api
-from .module_control import mctrl, wctrl
+from .module_control import mctrl
+from .widget_control import wctrl
 from .overlay_control import octrl
 
 logger = logging.getLogger(__name__)
 
 
-def start():
-    """Start api, modules, widgets. Call once per launch."""
+def load():
+    """Load api, modules, widgets"""
     logger.info("STARTING............")
     api.connect()
     api.start()     # 1 start api
     load_modules()  # 2 load modules
-
-
-def close():
-    """Close api, modules, widgets. Call before quit APP."""
-    logger.info("CLOSING............")
-    unload_modules()  # 1 unload modules
-    api.stop()        # 2 stop api
 
 
 def reload():
@@ -52,6 +46,13 @@ def reload():
     cfg.load()        # 2 reload setting
     api.restart()     # 3 restart api
     load_modules()    # 4 load modules
+
+
+def unload():
+    """unload api, modules, widgets"""
+    logger.info("CLOSING............")
+    unload_modules()  # 1 unload modules
+    api.stop()        # 2 stop api
 
 
 def load_modules():

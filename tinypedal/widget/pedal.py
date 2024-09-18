@@ -20,9 +20,9 @@
 Pedal Widget
 """
 
-from PySide2.QtCore import Qt, QRectF, QSize
-from PySide2.QtGui import QPixmap, QPainter, QPen
-from PySide2.QtWidgets import QLabel, QGridLayout
+from PySide6.QtCore import Qt, QRectF, QSize
+from PySide6.QtGui import QPixmap, QPainter, QPen
+from PySide6.QtWidgets import QLabel, QGridLayout
 
 from ..api_control import api
 from ._base import Overlay
@@ -30,7 +30,7 @@ from ._base import Overlay
 WIDGET_NAME = "pedal"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -172,9 +172,12 @@ class Realtime(Overlay):
         self.last_clutch = None
         self.last_ffb = None
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Reset switch
             if not self.checked:

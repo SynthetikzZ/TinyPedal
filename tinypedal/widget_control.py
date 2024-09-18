@@ -17,7 +17,7 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-Module control
+Widget control
 """
 
 import logging
@@ -25,46 +25,46 @@ import time
 import pkgutil
 
 from .setting import cfg
-from . import module
+from . import widget
 from . import validator as val
 
 logger = logging.getLogger(__name__)
 
 
-class ModuleControl:
-    """Module control
+class WidgetControl:
+    """Widget control
 
     Attributes:
-        PACK: Data module reference dictionary.
+        PACK: widget module reference dictionary.
         key = module name string. value = module.
     """
     PACK = {
-        name: getattr(module, name)
-        for _, name, _ in pkgutil.iter_modules(module.__path__)
-        if val.is_imported_module(module, name)
+        name: getattr(widget, name)
+        for _, name, _ in pkgutil.iter_modules(widget.__path__)
+        if val.is_imported_module(widget, name)
     }
 
     def start(self, name: str = ""):
-        """Start module, specify name for selected module"""
+        """Start widget, specify name for selected widget"""
         if name:
             self.__start_selected(name)
         else:
             self.__start_enabled()
 
     def close(self, name: str = ""):
-        """Close module, specify name for selected module"""
+        """Close widget, specify name for selected widget"""
         if name:
             self.__close_selected(name)
         else:
             self.__close_enabled()
 
     def reload(self, name: str = ""):
-        """Reload module"""
+        """Reload widget"""
         self.close(name)
         self.start(name)
 
     def toggle(self, name: str):
-        """Toggle module"""
+        """Toggle widget"""
         if cfg.user.setting[name]["enable"]:
             cfg.user.setting[name]["enable"] = False
             self.__close_selected(name)
@@ -74,55 +74,54 @@ class ModuleControl:
         cfg.save()
 
     def enable_all(self):
-        """Enable all modules"""
+        """Enable all widgets"""
         for _name in self.PACK.keys():
             cfg.user.setting[_name]["enable"] = True
         self.start()
         cfg.save()
-        logger.info("ACTIVE: all modules")
+        logger.info("ACTIVE: all widgets")
 
     def disable_all(self):
-        """Disable all modules"""
+        """Disable all widgets"""
         for _name in self.PACK.keys():
             cfg.user.setting[_name]["enable"] = False
         self.close()
         cfg.save()
-        logger.info("CLOSED: all modules")
+        logger.info("CLOSED: all widgets")
 
     def __start_enabled(self):
-        """Start all enabled module"""
+        """Start all enabled widget"""
         for _name in self.PACK.keys():
             self.__start_selected(_name)
 
     def __start_selected(self, name: str):
-        """Start selected module"""
+        """Start selected widget"""
         if cfg.user.setting[name]["enable"]:
             self.__create_instance(name)
 
     @staticmethod
     def __close_enabled():
-        """Close all enabled module"""
-        name_list = tuple(cfg.active_module_list)
+        """Close all enabled widget"""
+        name_list = tuple(cfg.active_widget_list)
         for _name in name_list:
-            if _name in cfg.active_module_list:
-                cfg.active_module_list[_name].stop()
-        while cfg.active_module_list:  # make sure stopped
+            if _name in cfg.active_widget_list:
+                cfg.active_widget_list[_name].closing()
+        while cfg.active_widget_list:  # make sure closed
             time.sleep(0.01)
 
     @staticmethod
     def __close_selected(name: str):
-        """Close selected module"""
-        _module = cfg.active_module_list.get(name, False)
-        if _module:
-            _module.stop()
-            while not _module.stopped:  # make sure stopped
+        """Close selected widget"""
+        _widget = cfg.active_widget_list.get(name, False)
+        if _widget:
+            _widget.closing()
+            while not _widget.closed:  # make sure stopped
                 time.sleep(0.01)
 
     def __create_instance(self, name: str):
-        """Create module instance"""
-        if name not in cfg.active_module_list:
-            cfg.active_module_list[name] = self.PACK[name].Realtime(cfg)
-            cfg.active_module_list[name].start()
+        """Create widget instance"""
+        if name not in cfg.active_widget_list:
+            cfg.active_widget_list[name] = self.PACK[name].Draw(cfg)
 
 
-mctrl = ModuleControl()
+wctrl = WidgetControl()

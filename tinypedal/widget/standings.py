@@ -20,20 +20,23 @@
 Standings Widget
 """
 
-from PySide2.QtCore import Qt
-from PySide2.QtGui import QPixmap
-from PySide2.QtWidgets import QGridLayout
+from functools import partial
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import QGridLayout, QLabel
 
 from .. import calculation as calc
 from .. import formatter as fmt
 from ..api_control import api
+from ..const import PATH_BRANDLOGO
 from ..module_info import minfo
 from ._base import Overlay
 
 WIDGET_NAME = "standings"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -57,8 +60,6 @@ class Realtime(Overlay):
         self.gap_decimals = max(int(self.wcfg["time_gap_decimal_places"]), 0)
         self.int_decimals = max(int(self.wcfg["time_interval_decimal_places"]), 0)
         self.tyre_compound_string = self.cfg.units["tyre_compound_symbol"].ljust(20, "?")
-        self.show_class_interval = (self.wcfg["enable_multi_class_split_mode"]
-            and self.wcfg["show_time_interval_from_same_class"])
 
         # Base style
         self.setStyleSheet(
@@ -66,7 +67,7 @@ class Realtime(Overlay):
             f"font-size: {self.wcfg['font_size']}px;"
             f"font-weight: {self.wcfg['font_weight']};"
         )
-        self.bar_split_style = f"margin-top: {self.wcfg['split_gap']}px;max-height: 0;"
+        self.bar_min_width = partial(calc.qss_min_width, font_width=font_m.width, padding=bar_padx)
 
         # Max display players
         if self.wcfg["enable_multi_class_split_mode"]:
@@ -74,359 +75,321 @@ class Realtime(Overlay):
         else:
             self.veh_range = min(max(int(self.wcfg["max_vehicles_combined_mode"]), 5), 126)
 
-        # Empty data set (last value sets toggle state, 0 - show, 1 - draw gap, 2 - hide)
+        # Empty data set
         self.empty_vehicles_data = (
-            (0,2),  # in_pit
-            ("",0,2),  # position
-            ("",0,2),  # driver name
-            ("",0,2),  # vehicle name
-            ("",0,2),  # pos_class
-            ("",2),  # veh_class
-            ("",0,2),  # tire_idx
-            ("",0,2),  # laptime
-            ("",0,2),  # best laptime
-            ("",0,2),  # time_gap
-            (-1,0,0,2),  # pit_count
-            ("",0,2),  # time_int
+            0,  # is_player
+            (0,0),  # in_pit
+            ("",0),  # position
+            ("",0),  # driver name
+            ("",0),  # vehicle name
+            ("",0),  # pos_class
+            ("",0),  # veh_class
+            (0,0),  # tire_idx
+            ("",0),  # laptime
+            ("",0),  # best laptime
+            ("",0),  # time_gap
+            (-1,0),  # pit_count
+            ("",0),  # time_int
         )
         self.pixmap_brandlogo = {"blank": QPixmap()}
-        self.data_bar = {}
-        self.curr_data = [None] * self.veh_range
-        self.last_data = [tuple(None for _ in self.empty_vehicles_data)] * self.veh_range
 
         # Create layout
-        layout = QGridLayout()
-        layout.setContentsMargins(0,0,0,0)  # remove border
-        layout.setHorizontalSpacing(0)
-        layout.setVerticalSpacing(bar_gap)
-        layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.setLayout(layout)
+        self.layout = QGridLayout()
+        self.layout.setContentsMargins(0,0,0,0)  # remove border
+        self.layout.setHorizontalSpacing(0)
+        self.layout.setVerticalSpacing(bar_gap)
+        self.layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+
+        column_pos = self.wcfg["column_index_position"]
+        column_drv = self.wcfg["column_index_driver"]
+        column_veh = self.wcfg["column_index_vehicle"]
+        column_brd = self.wcfg["column_index_brand_logo"]
+        column_lpt = self.wcfg["column_index_laptime"]
+        column_blp = self.wcfg["column_index_best_laptime"]
+        column_pic = self.wcfg["column_index_position_in_class"]
+        column_cls = self.wcfg["column_index_class"]
+        column_tcp = self.wcfg["column_index_tyre_compound"]
+        column_psc = self.wcfg["column_index_pitstop_count"]
+        column_gap = self.wcfg["column_index_timegap"]
+        column_int = self.wcfg["column_index_timeinterval"]
+        column_pit = self.wcfg["column_index_pitstatus"]
 
         # Driver position
         if self.wcfg["show_position"]:
-            self.bar_style_pos = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_position"],
-                    bg_color=self.wcfg["bkg_color_position"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_player_position"],
-                    bg_color=self.wcfg["bkg_color_player_position"])
+            bar_style_pos = self.bar_min_width(
+                2,
+                f"color: {self.wcfg['font_color_position']};"
+                f"background: {self.wcfg['bkg_color_position']};"
             )
-            self.set_table(
-                name="pos",
-                style=self.bar_style_pos[0],
-                width=2 * font_m.width + bar_padx,
-                column=self.wcfg["column_index_position"],
-            )
+            self.generate_bar("pos", bar_style_pos, column_pos)
+
         # Driver name
         if self.wcfg["show_driver_name"]:
-            self.bar_style_drv = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_driver_name"],
-                    bg_color=self.wcfg["bkg_color_driver_name"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_player_driver_name"],
-                    bg_color=self.wcfg["bkg_color_player_driver_name"])
+            bar_style_drv = self.bar_min_width(
+                self.drv_width,
+                f"color: {self.wcfg['font_color_driver_name']};"
+                f"background: {self.wcfg['bkg_color_driver_name']};"
             )
-            self.set_table(
-                name="drv",
-                style=self.bar_style_drv[0],
-                width=self.drv_width * font_m.width + bar_padx,
-                column=self.wcfg["column_index_driver"],
-            )
+            self.generate_bar("drv", bar_style_drv, column_drv)
+
         # Vehicle name
         if self.wcfg["show_vehicle_name"]:
-            self.bar_style_veh = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_vehicle_name"],
-                    bg_color=self.wcfg["bkg_color_vehicle_name"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_player_vehicle_name"],
-                    bg_color=self.wcfg["bkg_color_player_vehicle_name"])
+            bar_style_veh = self.bar_min_width(
+                self.veh_width,
+                f"color: {self.wcfg['font_color_vehicle_name']};"
+                f"background: {self.wcfg['bkg_color_vehicle_name']};"
             )
-            self.set_table(
-                name="veh",
-                style=self.bar_style_veh[0],
-                width=self.veh_width * font_m.width + bar_padx,
-                column=self.wcfg["column_index_vehicle"],
-            )
+            self.generate_bar("veh", bar_style_veh, column_veh)
+
         # Brand logo
         if self.wcfg["show_brand_logo"]:
-            self.bar_style_brd = (
-                self.set_qss(
-                    bg_color=self.wcfg["bkg_color_brand_logo"]),
-                self.set_qss(
-                    bg_color=self.wcfg["bkg_color_player_brand_logo"])
+            bar_style_brd = (
+                f"background: {self.wcfg['bkg_color_brand_logo']};"
+                f"min-width: {self.brd_width}px;"
             )
-            self.set_table(
-                name="brd",
-                style=self.bar_style_brd[0],
-                width=self.brd_width,
-                column=self.wcfg["column_index_brand_logo"],
-            )
+            self.generate_bar("brd", bar_style_brd, column_brd)
+
         # Time gap
         if self.wcfg["show_time_gap"]:
-            self.bar_style_gap = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_time_gap"],
-                    bg_color=self.wcfg["bkg_color_time_gap"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_player_time_gap"],
-                    bg_color=self.wcfg["bkg_color_player_time_gap"])
+            bar_style_gap = self.bar_min_width(
+                self.gap_width,
+                f"color: {self.wcfg['font_color_time_gap']};"
+                f"background: {self.wcfg['bkg_color_time_gap']};"
             )
-            self.set_table(
-                name="gap",
-                style=self.bar_style_gap[0],
-                width=self.gap_width * font_m.width + bar_padx,
-                column=self.wcfg["column_index_timegap"],
-            )
+            self.generate_bar("gap", bar_style_gap, column_gap)
+
         # Time interval
         if self.wcfg["show_time_interval"]:
-            self.bar_style_int = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_time_interval"],
-                    bg_color=self.wcfg["bkg_color_time_interval"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_player_time_interval"],
-                    bg_color=self.wcfg["bkg_color_player_time_interval"])
+            bar_style_int = self.bar_min_width(
+                self.int_width,
+                f"color: {self.wcfg['font_color_time_interval']};"
+                f"background: {self.wcfg['bkg_color_time_interval']};"
             )
-            self.set_table(
-                name="int",
-                style=self.bar_style_int[0],
-                width=self.int_width * font_m.width + bar_padx,
-                column=self.wcfg["column_index_timeinterval"],
-            )
+            self.generate_bar("int", bar_style_int, column_int)
+
         # Vehicle laptime
         if self.wcfg["show_laptime"]:
-            self.bar_style_lpt = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_laptime"],
-                    bg_color=self.wcfg["bkg_color_laptime"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_player_laptime"],
-                    bg_color=self.wcfg["bkg_color_player_laptime"])
+            bar_style_lpt = self.bar_min_width(
+                8,
+                f"color: {self.wcfg['font_color_laptime']};"
+                f"background: {self.wcfg['bkg_color_laptime']};"
             )
-            self.set_table(
-                name="lpt",
-                style=self.bar_style_lpt[0],
-                width=8 * font_m.width + bar_padx,
-                column=self.wcfg["column_index_laptime"],
-            )
+            self.generate_bar("lpt", bar_style_lpt, column_lpt)
+
         # Vehicle best laptime
         if self.wcfg["show_best_laptime"]:
-            self.bar_style_blp = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_best_laptime"],
-                    bg_color=self.wcfg["bkg_color_best_laptime"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_player_best_laptime"],
-                    bg_color=self.wcfg["bkg_color_player_best_laptime"])
+            bar_style_blp = self.bar_min_width(
+                8,
+                f"color: {self.wcfg['font_color_best_laptime']};"
+                f"background: {self.wcfg['bkg_color_best_laptime']};"
             )
-            self.set_table(
-                name="blp",
-                style=self.bar_style_blp[0],
-                width=8 * font_m.width + bar_padx,
-                column=self.wcfg["column_index_best_laptime"],
-            )
-        # Position in class
+            self.generate_bar("blp", bar_style_blp, column_blp)
+
+        # Vehicle position in class
         if self.wcfg["show_position_in_class"]:
-            self.bar_style_pic = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_position_in_class"],
-                    bg_color=self.wcfg["bkg_color_position_in_class"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_player_position_in_class"],
-                    bg_color=self.wcfg["bkg_color_player_position_in_class"])
+            bar_style_pic = self.bar_min_width(
+                2,
+                f"color: {self.wcfg['font_color_position_in_class']};"
+                f"background: {self.wcfg['bkg_color_position_in_class']};"
             )
-            self.set_table(
-                name="pic",
-                style=self.bar_style_pic[0],
-                width=2 * font_m.width + bar_padx,
-                column=self.wcfg["column_index_position_in_class"],
-            )
+            self.generate_bar("pic", bar_style_pic, column_pic)
+
         # Vehicle class
         if self.wcfg["show_class"]:
-            bar_style_cls = self.set_qss(
-                fg_color=self.wcfg["font_color_class"],
-                bg_color=self.wcfg["bkg_color_class"]
+            bar_style_cls = self.bar_min_width(
+                self.cls_width,
+                f"color: {self.wcfg['font_color_class']};"
+                f"background: {self.wcfg['bkg_color_class']};"
             )
-            self.set_table(
-                name="cls",
-                style=bar_style_cls,
-                width=self.cls_width * font_m.width + bar_padx,
-                column=self.wcfg["column_index_class"],
-            )
+            self.generate_bar("cls", bar_style_cls, column_cls)
+
         # Vehicle in pit
         if self.wcfg["show_pit_status"]:
-            self.bar_style_pit = (
-                self.set_qss(
-                    fg_color="#00000000",
-                    bg_color="#00000000"),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_pit"],
-                    bg_color=self.wcfg["bkg_color_pit"])
+            bar_style_pit = self.bar_min_width(
+                len(self.wcfg['pit_status_text']),
+                f"color: {self.wcfg['font_color_pit']};"
+                f"background: {self.wcfg['bkg_color_pit']};"
             )
-            self.set_table(
-                name="pit",
-                style=self.bar_style_pit[1],
-                width=len(self.wcfg["pit_status_text"]) * font_m.width + bar_padx,
-                column=self.wcfg["column_index_pitstatus"],
-            )
+            self.generate_bar("pit", bar_style_pit, column_pit)
+
         # Tyre compound index
         if self.wcfg["show_tyre_compound"]:
-            self.bar_style_tcp = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_tyre_compound"],
-                    bg_color=self.wcfg["bkg_color_tyre_compound"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_player_tyre_compound"],
-                    bg_color=self.wcfg["bkg_color_player_tyre_compound"])
+            bar_style_tcp = self.bar_min_width(
+                2,
+                f"color: {self.wcfg['font_color_tyre_compound']};"
+                f"background: {self.wcfg['bkg_color_tyre_compound']};"
             )
-            self.set_table(
-                name="tcp",
-                style=self.bar_style_tcp[0],
-                width=2 * font_m.width + bar_padx,
-                column=self.wcfg["column_index_tyre_compound"],
-            )
+            self.generate_bar("tcp", bar_style_tcp, column_tcp)
+
         # Pitstop count
         if self.wcfg["show_pitstop_count"]:
-            self.bar_style_psc = (
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_pitstop_count"],
-                    bg_color=self.wcfg["bkg_color_pitstop_count"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_player_pitstop_count"],
-                    bg_color=self.wcfg["bkg_color_player_pitstop_count"]),
-                self.set_qss(
-                    fg_color=self.wcfg["font_color_pit_request"],
-                    bg_color=self.wcfg["bkg_color_pit_request"])
+            bar_style_psc = self.bar_min_width(
+                2,
+                f"color: {self.wcfg['font_color_pitstop_count']};"
+                f"background: {self.wcfg['bkg_color_pitstop_count']};"
             )
-            self.set_table(
-                name="psc",
-                style=self.bar_style_psc[0],
-                width=2 * font_m.width + bar_padx,
-                column=self.wcfg["column_index_pitstop_count"],
-            )
+            self.generate_bar("psc", bar_style_psc, column_psc)
+
+        # Set layout
+        self.setLayout(self.layout)
+
+        # Set widget state & start update
+        self.set_widget_state()
+
+    def generate_bar(self, suffix, style, column_idx):
+        """Generate data bar"""
+        data_slots = len(self.empty_vehicles_data)
+        for idx in range(self.veh_range):
+            setattr(self, f"row_{idx}_{suffix}", QLabel(""))
+            getattr(self, f"row_{idx}_{suffix}").setAlignment(Qt.AlignCenter)
+            getattr(self, f"row_{idx}_{suffix}").setStyleSheet(style)
+            self.layout.addWidget(
+                getattr(self, f"row_{idx}_{suffix}"), idx, column_idx)
+            if idx > 0:  # show only first row initially
+                getattr(self, f"row_{idx}_{suffix}").setStyleSheet(
+                    f"max-height:{self.wcfg['split_gap']}px;"
+                )
+            # Last data
+            setattr(self, f"last_veh_{idx}", [None] * data_slots)
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state and minfo.relative.standings:
 
-            standings_list = minfo.relative.standings
+            standings_idx = minfo.relative.standings
             vehicles_data = minfo.vehicles.dataSet
-            total_idx = len(standings_list) - 1  # skip final -1 index
+            total_idx = len(standings_idx)
             total_veh_idx = len(vehicles_data)
-            in_race = api.read.session.in_race()
 
             # Standings update
             for idx in range(self.veh_range):
 
                 # Get vehicle data
-                if idx < total_idx and -1 <= standings_list[idx] < total_veh_idx:
-                    self.curr_data[idx] = self.get_data(
-                        standings_list[idx], vehicles_data, in_race,
-                        standings_list[idx] == -1)  # set state
-                elif self.last_data[idx] == self.empty_vehicles_data:
-                    continue  # skip if already empty
-                else:
-                    self.curr_data[idx] = self.empty_vehicles_data
+                if idx < total_idx and 0 <= standings_idx[idx] < total_veh_idx:
+                    setattr(self, f"veh_{idx}",
+                            self.get_data(standings_idx[idx], vehicles_data)
+                            )
+                else:  # bypass index out range
+                    setattr(self, f"veh_{idx}",
+                            self.empty_vehicles_data
+                            )
                 # Driver position
                 if self.wcfg["show_position"]:
-                    self.update_pos(self.data_bar[f"{idx}_pos"],
-                                    self.curr_data[idx][1],
-                                    self.last_data[idx][1],
+                    self.update_pos(f"{idx}_pos",
+                                    getattr(self, f"veh_{idx}")[2],
+                                    getattr(self, f"last_veh_{idx}")[2],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
                 # Driver name
                 if self.wcfg["show_driver_name"]:
-                    self.update_drv(self.data_bar[f"{idx}_drv"],
-                                    self.curr_data[idx][2],
-                                    self.last_data[idx][2],
+                    self.update_drv(f"{idx}_drv",
+                                    getattr(self, f"veh_{idx}")[3],
+                                    getattr(self, f"last_veh_{idx}")[3],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
                 # Vehicle name
                 if self.wcfg["show_vehicle_name"]:
-                    self.update_veh(self.data_bar[f"{idx}_veh"],
-                                    self.curr_data[idx][3],
-                                    self.last_data[idx][3],
+                    self.update_veh(f"{idx}_veh",
+                                    getattr(self, f"veh_{idx}")[4],
+                                    getattr(self, f"last_veh_{idx}")[4],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
                 # Brand logo
                 if self.wcfg["show_brand_logo"]:
-                    self.update_brd(self.data_bar[f"{idx}_brd"],
-                                    self.curr_data[idx][3],
-                                    self.last_data[idx][3],
+                    self.update_brd(f"{idx}_brd",
+                                    getattr(self, f"veh_{idx}")[4],
+                                    getattr(self, f"last_veh_{idx}")[4],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
                 # Time gap
                 if self.wcfg["show_time_gap"]:
-                    self.update_gap(self.data_bar[f"{idx}_gap"],
-                                    self.curr_data[idx][9],
-                                    self.last_data[idx][9],
+                    self.update_gap(f"{idx}_gap",
+                                    getattr(self, f"veh_{idx}")[10],
+                                    getattr(self, f"last_veh_{idx}")[10],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
                 # Time interval
                 if self.wcfg["show_time_interval"]:
-                    self.update_int(self.data_bar[f"{idx}_int"],
-                                    self.curr_data[idx][11],
-                                    self.last_data[idx][11],
+                    self.update_int(f"{idx}_int",
+                                    getattr(self, f"veh_{idx}")[12],
+                                    getattr(self, f"last_veh_{idx}")[12],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
                 # Vehicle laptime
                 if self.wcfg["show_laptime"]:
-                    self.update_lpt(self.data_bar[f"{idx}_lpt"],
-                                    self.curr_data[idx][7],
-                                    self.last_data[idx][7],
+                    self.update_lpt(f"{idx}_lpt",
+                                    getattr(self, f"veh_{idx}")[8],
+                                    getattr(self, f"last_veh_{idx}")[8],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
                 # Vehicle best laptime
                 if self.wcfg["show_best_laptime"]:
-                    self.update_blp(self.data_bar[f"{idx}_blp"],
-                                    self.curr_data[idx][8],
-                                    self.last_data[idx][8],
+                    self.update_blp(f"{idx}_blp",
+                                    getattr(self, f"veh_{idx}")[9],
+                                    getattr(self, f"last_veh_{idx}")[9],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
-                # Position in class
+                # Vehicle position in class
                 if self.wcfg["show_position_in_class"]:
-                    self.update_pic(self.data_bar[f"{idx}_pic"],
-                                    self.curr_data[idx][4],
-                                    self.last_data[idx][4],
+                    self.update_pic(f"{idx}_pic",
+                                    getattr(self, f"veh_{idx}")[5],
+                                    getattr(self, f"last_veh_{idx}")[5],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
                 # Vehicle class
                 if self.wcfg["show_class"]:
-                    self.update_cls(self.data_bar[f"{idx}_cls"],
-                                    self.curr_data[idx][5],
-                                    self.last_data[idx][5]
+                    self.update_cls(f"{idx}_cls",
+                                    getattr(self, f"veh_{idx}")[6],
+                                    getattr(self, f"last_veh_{idx}")[6]
                                     )
                 # Vehicle in pit
                 if self.wcfg["show_pit_status"]:
-                    self.update_pit(self.data_bar[f"{idx}_pit"],
-                                    self.curr_data[idx][0],
-                                    self.last_data[idx][0]
+                    self.update_pit(f"{idx}_pit",
+                                    getattr(self, f"veh_{idx}")[1],
+                                    getattr(self, f"last_veh_{idx}")[1]
                                     )
                 # Tyre compound index
                 if self.wcfg["show_tyre_compound"]:
-                    self.update_tcp(self.data_bar[f"{idx}_tcp"],
-                                    self.curr_data[idx][6],
-                                    self.last_data[idx][6],
+                    self.update_tcp(f"{idx}_tcp",
+                                    getattr(self, f"veh_{idx}")[7],
+                                    getattr(self, f"last_veh_{idx}")[7],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
                 # Pitstop count
                 if self.wcfg["show_pitstop_count"]:
-                    self.update_psc(self.data_bar[f"{idx}_psc"],
-                                    self.curr_data[idx][10],
-                                    self.last_data[idx][10],
+                    self.update_psc(f"{idx}_psc",
+                                    getattr(self, f"veh_{idx}")[11],
+                                    getattr(self, f"last_veh_{idx}")[11],
+                                    getattr(self, f"veh_{idx}")[0]  # is_player
                                     )
                 # Store last data reading
-                self.last_data[idx] = self.curr_data[idx]
+                setattr(self, f"last_veh_{idx}", getattr(self, f"veh_{idx}"))
 
     # GUI update methods
-    def update_pos(self, target_bar, curr, last):
+    def update_pos(self, suffix, curr, last, isplayer):
         """Driver position"""
         if curr != last:
-            if curr[0] != "":
-                text = f"{curr[0]:02d}"
+            if self.wcfg["show_player_highlighted"] and isplayer:
+                color = (f"color: {self.wcfg['font_color_player_position']};"
+                         f"background: {self.wcfg['bkg_color_player_position']};")
             else:
-                text = ""
+                color = (f"color: {self.wcfg['font_color_position']};"
+                         f"background: {self.wcfg['bkg_color_position']};")
 
-            target_bar.setText(text)
-            target_bar.setStyleSheet(self.bar_style_pos[curr[1]])
-            self.toggle_visibility(curr[2], target_bar)
+            getattr(self, f"row_{suffix}").setText(curr[0])
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(2, color))
+            self.toggle_visibility(curr[0], getattr(self, f"row_{suffix}"))
 
-    def update_drv(self, target_bar, curr, last):
+    def update_drv(self, suffix, curr, last, isplayer):
         """Driver name"""
         if curr != last:
+            if self.wcfg["show_player_highlighted"] and isplayer:
+                color = (f"color: {self.wcfg['font_color_player_driver_name']};"
+                         f"background: {self.wcfg['bkg_color_player_driver_name']};")
+            else:
+                color = (f"color: {self.wcfg['font_color_driver_name']};"
+                         f"background: {self.wcfg['bkg_color_driver_name']};")
+
             if self.wcfg["driver_name_shorten"]:
                 text = fmt.shorten_driver_name(curr[0])
             else:
@@ -440,13 +403,20 @@ class Realtime(Overlay):
             else:
                 text = text[:self.drv_width].ljust(self.drv_width)
 
-            target_bar.setText(text)
-            target_bar.setStyleSheet(self.bar_style_drv[curr[1]])
-            self.toggle_visibility(curr[2], target_bar)
+            getattr(self, f"row_{suffix}").setText(text)
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(self.drv_width, color))
+            self.toggle_visibility(curr[0], getattr(self, f"row_{suffix}"))
 
-    def update_veh(self, target_bar, curr, last):
+    def update_veh(self, suffix, curr, last, isplayer):
         """Vehicle name"""
         if curr != last:
+            if self.wcfg["show_player_highlighted"] and isplayer:
+                color = (f"color: {self.wcfg['font_color_player_vehicle_name']};"
+                         f"background: {self.wcfg['bkg_color_player_vehicle_name']};")
+            else:
+                color = (f"color: {self.wcfg['font_color_vehicle_name']};"
+                         f"background: {self.wcfg['bkg_color_vehicle_name']};")
+
             if self.wcfg["show_vehicle_brand_as_name"]:
                 vname = self.cfg.user.brands.get(curr[0], curr[0])
             else:
@@ -462,153 +432,168 @@ class Realtime(Overlay):
             else:
                 text = text[:self.veh_width].ljust(self.veh_width)
 
-            target_bar.setText(text)
-            target_bar.setStyleSheet(self.bar_style_veh[curr[1]])
-            self.toggle_visibility(curr[2], target_bar)
+            getattr(self, f"row_{suffix}").setText(text)
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(self.veh_width, color))
+            self.toggle_visibility(curr[0], getattr(self, f"row_{suffix}"))
 
-    def update_brd(self, target_bar, curr, last):
+    def update_brd(self, suffix, curr, last, isplayer):
         """Brand logo"""
         if curr != last:
+            if self.wcfg["show_player_highlighted"] and isplayer:
+                color = f"background: {self.wcfg['bkg_color_player_brand_logo']};"
+            else:
+                color = f"background: {self.wcfg['bkg_color_brand_logo']};"
+
             if curr[0]:
                 brand_name = self.cfg.user.brands.get(curr[0], curr[0])
             else:
                 brand_name = "blank"
             # Draw brand logo
-            target_bar.setPixmap(self.load_brand_logo(brand_name))
+            getattr(self, f"row_{suffix}").setPixmap(self.load_brand_logo(brand_name))
             # Draw background
-            target_bar.setStyleSheet(self.bar_style_brd[curr[1]])
-            self.toggle_visibility(curr[2], target_bar)
+            getattr(self, f"row_{suffix}").setStyleSheet(f"{color}min-width: {self.brd_width}px;")
+            self.toggle_visibility(curr[0], getattr(self, f"row_{suffix}"))
 
-    def update_gap(self, target_bar, curr, last):
+    def update_gap(self, suffix, curr, last, isplayer):
         """Time gap"""
         if curr != last:
-            target_bar.setText(curr[0][:self.gap_width].strip("."))
-            target_bar.setStyleSheet(self.bar_style_gap[curr[1]])
-            self.toggle_visibility(curr[2], target_bar)
+            if self.wcfg["show_player_highlighted"] and isplayer:
+                color = (f"color: {self.wcfg['font_color_player_time_gap']};"
+                         f"background: {self.wcfg['bkg_color_player_time_gap']};")
+            else:
+                color = (f"color: {self.wcfg['font_color_time_gap']};"
+                         f"background: {self.wcfg['bkg_color_time_gap']};")
 
-    def update_int(self, target_bar, curr, last):
+            getattr(self, f"row_{suffix}").setText(
+                curr[0][:self.gap_width].strip("."))
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(self.gap_width, color))
+            self.toggle_visibility(curr[0], getattr(self, f"row_{suffix}"))
+
+    def update_int(self, suffix, curr, last, isplayer):
         """Time interval"""
         if curr != last:
-            if curr[0] != "":
-                text = self.int_to_next(*curr[0])[:self.int_width].strip(".")
+            if self.wcfg["show_player_highlighted"] and isplayer:
+                color = (f"color: {self.wcfg['font_color_player_time_interval']};"
+                         f"background: {self.wcfg['bkg_color_player_time_interval']};")
             else:
-                text = ""
+                color = (f"color: {self.wcfg['font_color_time_interval']};"
+                         f"background: {self.wcfg['bkg_color_time_interval']};")
 
-            target_bar.setText(text)
-            target_bar.setStyleSheet(self.bar_style_int[curr[1]])
-            self.toggle_visibility(curr[2], target_bar)
+            getattr(self, f"row_{suffix}").setText(
+                curr[0][:self.int_width].strip("."))
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(self.int_width, color))
+            self.toggle_visibility(curr[0], getattr(self, f"row_{suffix}"))
 
-    def update_lpt(self, target_bar, curr, last):
+    def update_lpt(self, suffix, curr, last, isplayer):
         """Vehicle laptime"""
         if curr != last:
-            if curr[0] != "":
-                text = self.set_laptime(*curr[0])
+            if self.wcfg["show_player_highlighted"] and isplayer:
+                color = (f"color: {self.wcfg['font_color_player_laptime']};"
+                         f"background: {self.wcfg['bkg_color_player_laptime']};")
             else:
-                text = ""
+                color = (f"color: {self.wcfg['font_color_laptime']};"
+                         f"background: {self.wcfg['bkg_color_laptime']};")
 
-            target_bar.setText(text)
-            target_bar.setStyleSheet(self.bar_style_lpt[curr[1]])
-            self.toggle_visibility(curr[2], target_bar)
+            getattr(self, f"row_{suffix}").setText(curr[0])
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(8, color))
+            self.toggle_visibility(curr[0], getattr(self, f"row_{suffix}"))
 
-    def update_blp(self, target_bar, curr, last):
+    def update_blp(self, suffix, curr, last, isplayer):
         """Vehicle best laptime"""
         if curr != last:
-            if curr[0] != "":
-                text = self.set_best_laptime(curr[0])
+            if self.wcfg["show_player_highlighted"] and isplayer:
+                color = (f"color: {self.wcfg['font_color_player_best_laptime']};"
+                         f"background: {self.wcfg['bkg_color_player_best_laptime']};")
             else:
-                text = ""
+                color = (f"color: {self.wcfg['font_color_best_laptime']};"
+                         f"background: {self.wcfg['bkg_color_best_laptime']};")
 
-            target_bar.setText(text)
-            target_bar.setStyleSheet(self.bar_style_blp[curr[1]])
-            self.toggle_visibility(curr[2], target_bar)
+            getattr(self, f"row_{suffix}").setText(curr[0])
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(8, color))
+            self.toggle_visibility(curr[0], getattr(self, f"row_{suffix}"))
 
-    def update_pic(self, target_bar, curr, last):
+    def update_pic(self, suffix, curr, last, isplayer):
         """Position in class"""
         if curr != last:
-            if curr[0] != "":
-                text = f"{curr[0]:02d}"
+            if self.wcfg["show_player_highlighted"] and isplayer:
+                color = (f"color: {self.wcfg['font_color_player_position_in_class']};"
+                         f"background: {self.wcfg['bkg_color_player_position_in_class']};")
             else:
-                text = ""
+                color = (f"color: {self.wcfg['font_color_position_in_class']};"
+                         f"background: {self.wcfg['bkg_color_position_in_class']};")
 
-            target_bar.setText(text)
-            target_bar.setStyleSheet(self.bar_style_pic[curr[1]])
-            self.toggle_visibility(curr[2], target_bar)
+            getattr(self, f"row_{suffix}").setText(curr[0])
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(2, color))
+            self.toggle_visibility(curr[0], getattr(self, f"row_{suffix}"))
 
-    def update_cls(self, target_bar, curr, last):
+    def update_cls(self, suffix, curr, last):
         """Vehicle class"""
         if curr != last:
             text, bg_color = self.set_class_style(curr[0])
-            target_bar.setText(text[:self.cls_width])
-            target_bar.setStyleSheet(
-                f"color: {self.wcfg['font_color_class']};background: {bg_color};")
-            self.toggle_visibility(curr[1], target_bar)
+            color = (f"color: {self.wcfg['font_color_class']};"
+                     f"background: {bg_color};")
 
-    def update_pit(self, target_bar, curr, last):
+            getattr(self, f"row_{suffix}").setText(text[:self.cls_width])
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(self.cls_width, color))
+            self.toggle_visibility(curr[0], getattr(self, f"row_{suffix}"))
+
+    def update_pit(self, suffix, curr, last):
         """Vehicle in pit"""
         if curr != last:
-            if curr[0]:
-                text = self.wcfg["pit_status_text"]
-            else:
-                text = ""
+            text, bg_color = self.set_pitstatus(curr[0])
+            color = (f"color: {self.wcfg['font_color_pit']};"
+                     f"background: {bg_color};")
 
-            target_bar.setText(text)
-            target_bar.setStyleSheet(self.bar_style_pit[curr[0]])
-            self.toggle_visibility(curr[1], target_bar)
+            getattr(self, f"row_{suffix}").setText(text)
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(len(text), color))
+            self.toggle_visibility(text, getattr(self, f"row_{suffix}"))
 
-    def update_tcp(self, target_bar, curr, last):
+    def update_tcp(self, suffix, curr, last, isplayer):
         """Tyre compound index"""
         if curr != last:
-            text = self.set_tyre_cmp(curr[0])
-            target_bar.setText(text)
-            target_bar.setStyleSheet(self.bar_style_tcp[curr[1]])
-            self.toggle_visibility(curr[2], target_bar)
+            if self.wcfg["show_player_highlighted"] and isplayer:
+                color = (f"color: {self.wcfg['font_color_player_tyre_compound']};"
+                         f"background: {self.wcfg['bkg_color_player_tyre_compound']};")
+            else:
+                color = (f"color: {self.wcfg['font_color_tyre_compound']};"
+                         f"background: {self.wcfg['bkg_color_tyre_compound']};")
 
-    def update_psc(self, target_bar, curr, last):
+            text = self.set_tyre_cmp(curr[0])
+            getattr(self, f"row_{suffix}").setText(text)
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(2, color))
+            self.toggle_visibility(text, getattr(self, f"row_{suffix}"))
+
+    def update_psc(self, suffix, curr, last, isplayer):
         """Pitstop count"""
         if curr != last:
             if self.wcfg["show_pit_request"] and curr[1] == 1:
-                color = self.bar_style_psc[2]
-            elif curr[2]:  # highlighted player
-                color = self.bar_style_psc[1]
+                color = (f"color: {self.wcfg['font_color_pit_request']};"
+                         f"background: {self.wcfg['bkg_color_pit_request']};")
+            elif self.wcfg["show_player_highlighted"] and isplayer:
+                color = (f"color: {self.wcfg['font_color_player_pitstop_count']};"
+                         f"background: {self.wcfg['bkg_color_player_pitstop_count']};")
             else:
-                color = self.bar_style_psc[0]
+                color = (f"color: {self.wcfg['font_color_pitstop_count']};"
+                         f"background: {self.wcfg['bkg_color_pitstop_count']};")
 
             text = self.set_pitcount(curr[0])
-            target_bar.setText(text)
-            target_bar.setStyleSheet(color)
-            self.toggle_visibility(curr[3], target_bar)
-
-    # GUI generate methods
-    def set_table(self, name: str, style: str, width: int, column: int):
-        """Set table"""
-        for idx in range(self.veh_range):
-            bar_name = f"{idx}_{name}"
-            self.data_bar[bar_name] = self.set_qlabel(
-                text="",
-                style=style,
-                width=width,
-            )
-            self.layout().addWidget(self.data_bar[bar_name], idx, column)
-            if idx > 0:  # show only first row initially
-                self.data_bar[bar_name].hide()
+            getattr(self, f"row_{suffix}").setText(text)
+            getattr(self, f"row_{suffix}").setStyleSheet(self.bar_min_width(2, color))
+            self.toggle_visibility(text, getattr(self, f"row_{suffix}"))
 
     # Additional methods
     def toggle_visibility(self, state, row_bar):
         """Hide row bar if empty data"""
-        if state == 0:
-            if row_bar.isHidden():
-                row_bar.show()
-        elif state == 1:
-            if self.wcfg["split_gap"] > 0:  # draw gap
-                row_bar.setStyleSheet(self.bar_split_style)
+        if self.wcfg["split_gap"] > 0:
+            if not state:  # add gap between non-empty data
+                row_bar.setStyleSheet(f"max-height:{self.wcfg['split_gap']}px;")
+        else:  # workaround to 1px minimum bar height limit
+            if state:
                 if row_bar.isHidden():
                     row_bar.show()
-            else:  # hide gap
+            else:
                 if not row_bar.isHidden():
                     row_bar.hide()
-        else:
-            if not row_bar.isHidden():
-                row_bar.hide()
 
     def load_brand_logo(self, brand_name):
         """Load brand logo"""
@@ -617,7 +602,7 @@ class Realtime(Overlay):
             return self.pixmap_brandlogo[brand_name]
         # Add available logo to cached
         if brand_name in self.cfg.user.brands_logo:
-            logo_temp = QPixmap(f"{self.cfg.path.brand_logo}{brand_name}.png")
+            logo_temp = QPixmap(f"{PATH_BRANDLOGO}{brand_name}.png")
             if calc.image_size_adaption(
                 logo_temp.width(), logo_temp.height(), self.brd_width, self.brd_height):
                 logo_image = logo_temp.scaledToWidth(  # adapt to width
@@ -635,6 +620,12 @@ class Realtime(Overlay):
         if tc_indices:
             return "".join((self.tyre_compound_string[idx] for idx in tc_indices))
         return ""
+
+    def set_pitstatus(self, pits):
+        """Set pit status color"""
+        if pits > 0:
+            return self.wcfg["pit_status_text"], self.wcfg["bkg_color_pit"]
+        return "", "#00000000"
 
     @staticmethod
     def set_pitcount(pits):
@@ -657,9 +648,9 @@ class Realtime(Overlay):
     def set_laptime(inpit, laptime_last, pit_time):
         """Set lap time"""
         if inpit:
-            return f"PIT{pit_time: >5.1f}"[:8] if pit_time > 0 else "-:--.---"
+            return "PIT" + f"{pit_time:.1f}"[:5].rjust(5) if pit_time > 0 else "-:--.---"
         if laptime_last <= 0:
-            return f"OUT{pit_time: >5.1f}"[:8] if pit_time > 0 else "-:--.---"
+            return "OUT" + f"{pit_time:.1f}"[:5].rjust(5) if pit_time > 0 else "-:--.---"
         return calc.sec2laptime_full(laptime_last)[:8].rjust(8)
 
     @staticmethod
@@ -689,67 +680,80 @@ class Realtime(Overlay):
             return f"{gap_behind:.0f}L"
         return f"{gap_behind:.{self.gap_decimals}f}"
 
-    def int_to_next(self, position, gap_behind):
+    def int_to_next(self, gap_behind_class, gap_behind, position_class, position):
         """Interval to next"""
-        if position == 1:
+        if (self.wcfg["enable_multi_class_split_mode"]
+            and self.wcfg["show_time_interval_from_same_class"]):
+            pos = position_class
+            gap = gap_behind_class
+        else:
+            pos = position
+            gap = gap_behind
+        if pos == 1:
             return self.wcfg["time_interval_leader_text"]
-        if isinstance(gap_behind, int):
-            return f"{gap_behind:.0f}L"
-        return f"{gap_behind:.{self.int_decimals}f}"
+        if isinstance(gap, int):
+            return f"{gap:.0f}L"
+        return f"{gap:.{self.int_decimals}f}"
 
-    def get_data(self, index, vehicles_data, in_race, state):
+    def get_data(self, index, vehicles_data):
         """Standings data"""
-        # Highlighted player
-        hi_player = self.wcfg["show_player_highlighted"] and vehicles_data[index].isPlayer
+        # 0 Is player
+        is_player = vehicles_data[index].isPlayer
 
-        # 0 Vehicle in pit (in_pit: bool, state)
-        in_pit = (vehicles_data[index].inPit, state)
+        # 1 Vehicle in pit
+        in_pit = (vehicles_data[index].inPit, is_player)
 
-        # 1 Driver position (position: int, hi_player, state)
-        position = (vehicles_data[index].position, hi_player, state)
+        # 2 Driver position
+        position = (f"{vehicles_data[index].position:02d}", is_player)
 
-        # 2 Driver name (drv_name: str, hi_player, state)
-        drv_name = (vehicles_data[index].driverName, hi_player, state)
+        # 3 Driver name
+        drv_name = (vehicles_data[index].driverName, is_player)
 
-        # 3 Vehicle name (veh_name: str, hi_player, state)
-        veh_name = (vehicles_data[index].vehicleName, hi_player, state)
+        # 4 Vehicle name
+        veh_name = (vehicles_data[index].vehicleName, is_player)
 
-        # 4 Position in class (pos_class: int, hi_player, state)
-        pos_class = (vehicles_data[index].positionInClass, hi_player, state)
+        # 5 Vehicle position in class
+        pos_class = (f"{vehicles_data[index].positionInClass:02d}", is_player)
 
-        # 5 Vehicle class (veh_class: str, state)
-        veh_class = (vehicles_data[index].vehicleClass, state)
+        # 6 Vehicle class
+        veh_class = (vehicles_data[index].vehicleClass, is_player)
 
-        # 6 Tyre compound index (tire_idx: tuple, hi_player, state)
-        tire_idx = (vehicles_data[index].tireCompound, hi_player, state)
+        # 7 Tyre compound index
+        tire_idx = (vehicles_data[index].tireCompound, is_player)
 
-        # 7 Lap time (laptime: tuple, hi_player, state)
+        in_race = api.read.session.in_race()
+
+        # 8 Lap time (last)
         if self.wcfg["show_best_laptime"] or in_race:
-            laptime = ((
+            laptime = (
+                self.set_laptime(
                     vehicles_data[index].inPit,
                     vehicles_data[index].lastLapTime,
                     vehicles_data[index].pitTime
                 ),
-                hi_player, state)
+                is_player)
         else:
-            laptime = ((
+            laptime = (
+                self.set_laptime(
                     0,
                     vehicles_data[index].bestLapTime,
                     0
                 ),
-                hi_player, state)
+                is_player)
 
-        # 8 Best lap time (best_laptime: float, hi_player, state)
-        best_laptime = (vehicles_data[index].bestLapTime, hi_player, state)
+        # 9 Best lap time
+        best_laptime = (
+            self.set_best_laptime(vehicles_data[index].bestLapTime),
+            is_player)
 
-        # 9 Time gap (time_gap: str, hi_player, state)
+        # 10 Time gap
         if in_race:
             time_gap = (
                 self.gap_to_leader_race(
                     vehicles_data[index].gapBehindLeader,
                     vehicles_data[index].position
                 ),
-                hi_player, state)
+                is_player)
         else:
             time_gap = (
                 self.gap_to_session_bestlap(
@@ -757,27 +761,22 @@ class Realtime(Overlay):
                     vehicles_data[index].sessionBestLapTime,
                     vehicles_data[index].classBestLapTime,
                 ),
-                hi_player, state)
+                is_player)
 
-        # 10 Pitstop count (pit_count: int, pit_state: int, hi_player, state)
-        pit_count = (
-            vehicles_data[index].numPitStops,
-            vehicles_data[index].pitState,
-            hi_player, state)
+        # 11 Pitstop count
+        pit_count = (vehicles_data[index].numPitStops,
+                    vehicles_data[index].pitState,
+                    is_player)
 
-        # 11 Time interval (time_int: tuple, hi_player, state)
-        if self.show_class_interval:
-            time_int = ((
-                    vehicles_data[index].positionInClass,
-                    vehicles_data[index].gapBehindNextInClass,
-                ),
-                hi_player, state)
-        else:
-            time_int = ((
-                    vehicles_data[index].position,
-                    vehicles_data[index].gapBehindNext,
-                ),
-                hi_player, state)
+        # 12 Time interval
+        time_int = (
+            self.int_to_next(
+                vehicles_data[index].gapBehindNextInClass,
+                vehicles_data[index].gapBehindNext,
+                vehicles_data[index].positionInClass,
+                vehicles_data[index].position,
+            ),
+            is_player)
 
-        return (in_pit, position, drv_name, veh_name, pos_class, veh_class,
+        return (is_player, in_pit, position, drv_name, veh_name, pos_class, veh_class,
                 tire_idx, laptime, best_laptime, time_gap, pit_count, time_int)

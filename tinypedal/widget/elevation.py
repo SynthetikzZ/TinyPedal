@@ -20,8 +20,8 @@
 Elevation Widget
 """
 
-from PySide2.QtCore import Qt, QRectF
-from PySide2.QtGui import QPainterPath, QPainter, QPixmap, QPen, QBrush
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainterPath, QPainter, QPixmap, QPen, QBrush
 
 from .. import calculation as calc
 from ..api_control import api
@@ -31,7 +31,7 @@ from ._base import Overlay
 WIDGET_NAME = "elevation"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -88,11 +88,13 @@ class Realtime(Overlay):
         self.veh_pos = (0,0,0)
         self.last_veh_pos = None
 
+        # Set widget state & start update
         self.update_elevation(0, 1)
+        self.set_widget_state()
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Elevation map
             elevation_hash = minfo.mapping.elevationsHash

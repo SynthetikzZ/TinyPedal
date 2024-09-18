@@ -20,17 +20,18 @@
 Track map Widget
 """
 
-from PySide2.QtCore import Qt, QRectF
-from PySide2.QtGui import QPainterPath, QPainter, QPixmap, QPen, QBrush
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainterPath, QPainter, QPixmap, QPen, QBrush
 
 from .. import calculation as calc
+from ..api_control import api
 from ..module_info import minfo
 from ._base import Overlay
 
 WIDGET_NAME = "track_map"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -91,11 +92,13 @@ class Realtime(Overlay):
         self.last_veh_data_version = None
         self.circular_map = True
 
+        # Set widget state & start update
         self.update_map(0, 1)
+        self.set_widget_state()
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Map
             coords_hash = minfo.mapping.coordinatesHash

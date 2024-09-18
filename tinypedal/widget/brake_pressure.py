@@ -20,8 +20,8 @@
 Brake pressure Widget
 """
 
-from PySide2.QtCore import Qt, QRectF
-from PySide2.QtGui import QPainter, QPen
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainter, QPen
 
 from ..api_control import api
 from ._base import Overlay
@@ -29,7 +29,7 @@ from ._base import Overlay
 WIDGET_NAME = "brake_pressure"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -100,14 +100,17 @@ class Realtime(Overlay):
 
         # Last data
         self.bpres = [0] * 4
-        self.last_bpres = [0] * 4
+        self.last_bpres = [None] * 4
+
+        # Set widget state & start update
+        self.set_widget_state()
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
-            # Brake pressure (*100 for output)
-            self.bpres = api.read.brake.pressure(scale=100)
+            # Brake pressure
+            self.bpres = tuple(map(self.brake_pressure_units, api.read.brake.pressure()))
             self.update_bpres(self.bpres, self.last_bpres)
             self.last_bpres = self.bpres
 
@@ -170,3 +173,9 @@ class Realtime(Overlay):
             Qt.AlignRight | Qt.AlignVCenter,
             f"{self.bpres[3]:.0f}"
         )
+
+    # Additional methods
+    @staticmethod
+    def brake_pressure_units(value):
+        """Brake pressure percentage"""
+        return round(value * 100, 1)

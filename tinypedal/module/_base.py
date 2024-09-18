@@ -23,8 +23,6 @@ Data module base
 import logging
 import threading
 
-from ..overlay_control import octrl
-
 logger = logging.getLogger(__name__)
 
 
@@ -34,8 +32,6 @@ class DataModule:
     def __init__(self, config: object, module_name: str):
         super().__init__()
         self.module_name = module_name
-        self.closed = True
-        self.state = octrl.state
 
         # Base config
         self.cfg = config
@@ -43,20 +39,23 @@ class DataModule:
         # Module config
         self.mcfg = self.cfg.user.setting[module_name]
 
-        # Module update interval
+        # Module update thread
+        self.stopped = True
         self.event = threading.Event()
+
+        # Module update interval
         self.active_interval = max(
             self.mcfg["update_interval"],
-            self.cfg.application["minimum_update_interval"]) / 1000
+            self.cfg.compatibility["minimum_update_interval"]) / 1000
         self.idle_interval = max(
             self.active_interval,
             self.mcfg["idle_update_interval"],
-            self.cfg.application["minimum_update_interval"]) / 1000
+            self.cfg.compatibility["minimum_update_interval"]) / 1000
 
     def start(self):
         """Start update thread"""
-        if self.closed:
-            self.closed = False
+        if self.stopped:
+            self.stopped = False
             self.event.clear()
             threading.Thread(target=self.update_data, daemon=True).start()
             logger.info("ACTIVE: %s", self.module_name.replace("_", " "))
@@ -64,7 +63,8 @@ class DataModule:
     def stop(self):
         """Stop update thread"""
         self.event.set()
-        self.closed = True
+        self.cfg.active_module_list.pop(self.module_name)
+        self.stopped = True
         logger.info("CLOSED: %s", self.module_name.replace("_", " "))
 
     def update_data(self):

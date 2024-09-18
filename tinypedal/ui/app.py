@@ -22,14 +22,16 @@ Main application window
 
 import logging
 
-from PySide2.QtCore import Qt, Slot
-from PySide2.QtGui import QIcon
-from PySide2.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import (
+    QIcon,
+    QAction,
+)
+from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
     QWidget,
     QLabel,
-    QAction,
     QTabWidget,
     QVBoxLayout,
     QPushButton,
@@ -38,8 +40,8 @@ from PySide2.QtWidgets import (
 from ..const import APP_NAME, VERSION, APP_ICON
 from ..setting import cfg
 from ..api_control import api
-from ..overlay_control import octrl
-from ..module_control import mctrl, wctrl
+from ..module_control import mctrl
+from ..widget_control import wctrl
 from .. import loader
 from .tray_icon import TrayIcon
 from .module_view import ModuleList
@@ -49,7 +51,7 @@ from .menu import OverlayMenu, ConfigMenu, ToolsMenu, WindowMenu, HelpMenu
 
 
 WINDOW_MIN_WIDTH = 300
-WINDOW_MIN_HEIGHT = 462
+WINDOW_MIN_HEIGHT = 454
 
 logger = logging.getLogger("tinypedal")
 
@@ -66,12 +68,8 @@ class AppWindow(QMainWindow):
         self.main_menubar()
 
         # Status bar & notification
-        label_api = QLabel("API:")
-        self.button_api = QPushButton("")
-        self.button_api.clicked.connect(self.config_menuitem.open_config_sharedmemory)
-        self.button_api.clicked.connect(self.set_status_text)
-        self.statusBar().insertPermanentWidget(0, label_api)
-        self.statusBar().insertPermanentWidget(1, self.button_api)
+        self.label_api_version = QLabel("")
+        self.statusBar().addPermanentWidget(self.label_api_version)
         self.set_status_text()
 
         self.notify_spectate = QPushButton("Spectate Mode Enabled")
@@ -82,8 +80,8 @@ class AppWindow(QMainWindow):
 
         # Controller tabs
         self.tab_bar = QTabWidget()
-        self.widget_tab = ModuleList(wctrl)
-        self.module_tab = ModuleList(mctrl)
+        self.widget_tab = ModuleList(wctrl, cfg.active_widget_list, "widget")
+        self.module_tab = ModuleList(mctrl, cfg.active_module_list, "module")
         self.preset_tab = PresetList(self)
         self.spectate_tab = SpectateList(self)
         self.tab_bar.addTab(self.widget_tab, "Widget")
@@ -103,8 +101,6 @@ class AppWindow(QMainWindow):
         # Tray icon & window state
         self.start_tray_icon()
         self.set_window_state()
-        self.__connect_signal()
-        cfg.app_loaded = True
 
     def goto_spectate_tab(self):
         """Go to spectate tab"""
@@ -126,7 +122,7 @@ class AppWindow(QMainWindow):
 
         # Config menu
         menu_config = menu.addMenu("Config")
-        self.config_menuitem = ConfigMenu(self, menu_config)
+        ConfigMenu(self, menu_config)
 
         # Tools menu
         menu_tools = menu.addMenu("Tools")
@@ -200,17 +196,16 @@ class AppWindow(QMainWindow):
             if last_pos != new_pos:
                 cfg.application["position_x"] = self.x()
                 cfg.application["position_y"] = self.y()
-                cfg.save(0, "config")
+                cfg.save(0)
 
     def set_status_text(self):
         """Set status text"""
-        self.button_api.setText(f"{api.name} - {api.version}")
+        self.label_api_version.setText(f"API: {api.name} - {api.version}")
 
     def quit_app(self):
         """Quit manager"""
         self.save_window_position()
-        self.__break_signal()
-        loader.close()
+        loader.unload()
         QApplication.quit()  # close app
 
     def int_signal_handler(self, sign, frame):
@@ -230,7 +225,6 @@ class AppWindow(QMainWindow):
         api.restart()
         self.set_status_text()
 
-    @Slot(bool)
     def reload_preset(self):
         """Reload current preset"""
         loader.reload()
@@ -240,11 +234,3 @@ class AppWindow(QMainWindow):
         self.widget_tab.refresh_state()
         self.module_tab.refresh_state()
         self.spectate_tab.refresh_list()
-
-    def __connect_signal(self):
-        """Connect overlay reload signal"""
-        octrl.state.reload.connect(self.reload_preset)
-
-    def __break_signal(self):
-        """Disconnect overlay reload signal"""
-        octrl.state.reload.disconnect(self.reload_preset)

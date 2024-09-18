@@ -25,6 +25,7 @@ import logging
 from ._base import DataModule
 from .module_fuel import calc_data
 from ..module_info import minfo
+from ..const import PATH_ENERGY
 from ..api_control import api
 from .. import calculation as calc
 
@@ -35,10 +36,10 @@ logger = logging.getLogger(__name__)
 
 class Realtime(DataModule):
     """Energy usage data"""
+    filepath = PATH_ENERGY
 
     def __init__(self, config):
         super().__init__(config, MODULE_NAME)
-        self.filepath = self.cfg.path.energy_delta
 
     def update_data(self):
         """Update module data"""
@@ -46,7 +47,7 @@ class Realtime(DataModule):
         update_interval = self.active_interval
 
         while not self.event.wait(update_interval):
-            if self.state.active:
+            if api.state:
 
                 if not reset:
                     reset = True

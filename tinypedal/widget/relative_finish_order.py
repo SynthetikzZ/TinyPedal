@@ -22,8 +22,8 @@ Relative finish order Widget
 
 from math import ceil as roundup
 
-from PySide2.QtCore import Qt
-from PySide2.QtWidgets import QGridLayout
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel, QGridLayout
 
 from .. import calculation as calc
 from ..api_control import api
@@ -35,7 +35,7 @@ MAGIC_NUM = 99999
 TEXT_NONE = "-"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -57,7 +57,6 @@ class Realtime(Overlay):
         self.player_pit_time_set = self.create_pit_time_set(self.total_slot, "player")
         self.decimals_laps = max(self.wcfg["decimal_places_laps"], 0)
         self.decimals_refill = max(self.wcfg["decimal_places_refill"], 0)
-        self.extra_laps = max(self.wcfg["number_of_extra_laps"], 1)
 
         self.leader_pace = LapTimePace(
             min(max(self.wcfg["leader_laptime_pace_samples"], 1), 20),
@@ -69,27 +68,23 @@ class Realtime(Overlay):
             f"font-size: {self.wcfg['font_size']}px;"
             f"font-weight: {self.wcfg['font_weight']};"
         )
+        self.style_width = (f"min-width: {font_m.width * self.bar_width + bar_padx}px;"
+                            f"max-width: {font_m.width * self.bar_width + bar_padx}px;")
         self.leader_lap_color = (
-            self.set_qss(
-                fg_color=self.wcfg["font_color_leader"],
-                bg_color=self.wcfg["bkg_color_leader"]),
-            self.set_qss(
-                fg_color=self.wcfg["font_color_near_start"],
-                bg_color=self.wcfg["bkg_color_leader"]),
-            self.set_qss(
-                fg_color=self.wcfg["font_color_near_finish"],
-                bg_color=self.wcfg["bkg_color_leader"])
+            (f"color: {self.wcfg['font_color_leader']};"
+            f"background: {self.wcfg['bkg_color_leader']};"),
+            (f"color: {self.wcfg['font_color_near_start']};"
+            f"background: {self.wcfg['bkg_color_leader']};"),
+            (f"color: {self.wcfg['font_color_near_finish']};"
+            f"background: {self.wcfg['bkg_color_leader']};")
         )
         self.player_lap_color = (
-            self.set_qss(
-                fg_color=self.wcfg["font_color_player"],
-                bg_color=self.wcfg["bkg_color_player"]),
-            self.set_qss(
-                fg_color=self.wcfg["font_color_near_start"],
-                bg_color=self.wcfg["bkg_color_player"]),
-            self.set_qss(
-                fg_color=self.wcfg["font_color_near_finish"],
-                bg_color=self.wcfg["bkg_color_player"])
+            (f"color: {self.wcfg['font_color_player']};"
+            f"background: {self.wcfg['bkg_color_player']};"),
+            (f"color: {self.wcfg['font_color_near_start']};"
+            f"background: {self.wcfg['bkg_color_player']};"),
+            (f"color: {self.wcfg['font_color_near_finish']};"
+            f"background: {self.wcfg['bkg_color_player']};")
         )
 
         # Create layout
@@ -97,148 +92,110 @@ class Realtime(Overlay):
         layout.setContentsMargins(0,0,0,0)  # remove border
         layout.setSpacing(bar_gap)
         layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.setLayout(layout)
 
-        self.data_bar = {}
-        self.set_table(
-            width=font_m.width * self.bar_width + bar_padx
-        )
+        self.generate_bar(layout)
+
+        # Set layout
+        self.setLayout(layout)
 
         # Last data
         self.last_lap_int = -1
         self.last_session_type = None
-        self.last_energy_type = None
+        self.last_refill_type = None
         self.last_lap_leader = [(-MAGIC_NUM, 0, 0)] * self.total_slot
         self.last_lap_player = [(-MAGIC_NUM, 0, 0)] * self.total_slot
         self.last_refill_player = [-MAGIC_NUM] * self.total_slot
-        self.last_refill_extra = [-MAGIC_NUM] * self.total_slot
-        self.last_pit_time_leader = 0
-        self.last_pit_time_player = 0
+        self.last_pit_time = 0,0
 
-    # GUI generate methods
-    def set_table(self, width: int):
-        """Set table"""
-        bar_style_pit_time = self.set_qss(
-            fg_color=self.wcfg["font_color_pit_time"],
-            bg_color=self.wcfg["bkg_color_pit_time"],
-            font_size=int(self.wcfg['font_size'] * 0.8),
+        # Set widget state & start update
+        self.set_widget_state()
+
+    def generate_bar(self, layout):
+        """Generate data bar"""
+        bar_style_pit_time = (
+            f"color: {self.wcfg['font_color_pit_time']};"
+            f"background: {self.wcfg['bkg_color_pit_time']};"
+            f"font-size: {int(self.wcfg['font_size'] * 0.8)}px;"
+            f"{self.style_width}"
         )
-        bar_style_refill = self.set_qss(
-            fg_color=self.wcfg["font_color_refill"],
-            bg_color=self.wcfg["bkg_color_refill"]
+        bar_style_refill = (
+            f"color: {self.wcfg['font_color_refill']};"
+            f"background: {self.wcfg['bkg_color_refill']};"
+            f"{self.style_width}"
         )
-        layout_inner = [None for _ in range(self.total_slot)]
 
         for index in range(self.total_slot):
             # Create column layout
-            layout_inner[index] = QGridLayout()
-            layout_inner[index].setSpacing(0)
+            setattr(self, f"layout_{index}", QGridLayout())
+            getattr(self, f"layout_{index}").setSpacing(0)
 
             # Leader pit time row
             pit_time_text = f"{self.leader_pit_time_set[index]:.0f}s"
-            name_pit_time = f"pit_leader_{index}"
-            self.data_bar[name_pit_time] = self.set_qlabel(
-                text=pit_time_text,
-                style=bar_style_pit_time,
-                width=width,
-            )
-            layout_inner[index].addWidget(
-                self.data_bar[name_pit_time], 0, 0
-            )
+            setattr(self, f"bar_pit_leader_{index}", QLabel(pit_time_text))
+            getattr(self, f"bar_pit_leader_{index}").setAlignment(Qt.AlignCenter)
+            getattr(self, f"bar_pit_leader_{index}").setStyleSheet(bar_style_pit_time)
+            getattr(self, f"layout_{index}").addWidget(
+                getattr(self, f"bar_pit_leader_{index}"), 0, 0)
 
             # Leader row
+            setattr(self, f"bar_lap_leader_{index}", QLabel(TEXT_NONE))
+            getattr(self, f"bar_lap_leader_{index}").setAlignment(Qt.AlignCenter)
+            getattr(self, f"bar_lap_leader_{index}").setStyleSheet(self.leader_lap_color[0])
             if index == 0:
-                lap_leader_text = "LDR"
-            else:
-                lap_leader_text = TEXT_NONE
-            name_lap_leader = f"lap_leader_{index}"
-            self.data_bar[name_lap_leader] = self.set_qlabel(
-                text=lap_leader_text,
-                style=self.leader_lap_color[0],
-                width=width,
-            )
-            layout_inner[index].addWidget(
-                self.data_bar[name_lap_leader], 1, 0
-            )
+                getattr(self, f"bar_lap_leader_{index}").setText("LDR")
+            getattr(self, f"layout_{index}").addWidget(
+                getattr(self, f"bar_lap_leader_{index}"), 1, 0)
 
             # Player row
-            name_lap_player = f"lap_player_{index}"
-            self.data_bar[name_lap_player] = self.set_qlabel(
-                text=TEXT_NONE,
-                style=self.player_lap_color[0],
-                width=width,
-            )
-            layout_inner[index].addWidget(
-                self.data_bar[name_lap_player], 2, 0
-            )
+            setattr(self, f"bar_lap_player_{index}", QLabel(TEXT_NONE))
+            getattr(self, f"bar_lap_player_{index}").setAlignment(Qt.AlignCenter)
+            getattr(self, f"bar_lap_player_{index}").setStyleSheet(self.player_lap_color[0])
+            getattr(self, f"layout_{index}").addWidget(
+                getattr(self, f"bar_lap_player_{index}"), 2, 0)
 
             # Player pit time row
             if index == 0:
                 pit_time_text = "DIFF"
             else:
                 pit_time_text = f"{self.player_pit_time_set[index]:.0f}s"
-            name_pit_player = f"pit_player_{index}"
-            self.data_bar[name_pit_player] = self.set_qlabel(
-                text=pit_time_text,
-                style=bar_style_pit_time,
-                width=width,
-            )
-            layout_inner[index].addWidget(
-                self.data_bar[name_pit_player], 3, 0
-            )
+            setattr(self, f"bar_pit_player_{index}", QLabel(pit_time_text))
+            getattr(self, f"bar_pit_player_{index}").setAlignment(Qt.AlignCenter)
+            getattr(self, f"bar_pit_player_{index}").setStyleSheet(bar_style_pit_time)
+            getattr(self, f"layout_{index}").addWidget(
+                getattr(self, f"bar_pit_player_{index}"), 3, 0)
 
             # Player refill row
-            name_refill = f"refill_{index}"
-            self.data_bar[name_refill] = self.set_qlabel(
-                text=TEXT_NONE,
-                style=bar_style_refill,
-                width=width,
-            )
-            layout_inner[index].addWidget(
-                self.data_bar[name_refill], 4, 0
-            )
-
-            # Player extra lap refill row
-            if self.wcfg["show_extra_refilling"]:
-                if index == 0:
-                    refill_extra_text = f"EX+{self.extra_laps}"
-                else:
-                    refill_extra_text = TEXT_NONE
-                name_refill_extra = f"refill_extra_{index}"
-                self.data_bar[name_refill_extra] = self.set_qlabel(
-                    text=refill_extra_text,
-                    style=bar_style_refill,
-                    width=width,
-                )
-                layout_inner[index].addWidget(
-                    self.data_bar[name_refill_extra], 5, 0
-                )
+            setattr(self, f"bar_refill_{index}", QLabel(TEXT_NONE))
+            getattr(self, f"bar_refill_{index}").setAlignment(Qt.AlignCenter)
+            getattr(self, f"bar_refill_{index}").setStyleSheet(bar_style_refill)
+            getattr(self, f"layout_{index}").addWidget(
+                getattr(self, f"bar_refill_{index}"), 4, 0)
 
             # Set layout
             if self.wcfg["layout"] == 0:  # left to right layout
-                self.layout().addLayout(
-                    layout_inner[index], 0, index
-                )
+                layout.addLayout(
+                    getattr(self, f"layout_{index}"), 0, index)
             else:  # right to left layout
-                self.layout().addLayout(
-                    layout_inner[index], 0, self.total_slot - 1 - index
-                )
+                layout.addLayout(
+                    getattr(self, f"layout_{index}"), 0, self.total_slot - 1 - index)
 
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
             self.update_predication()
 
     def update_predication(self):
         """Update predication"""
         is_lap_type_session = api.read.session.lap_type()
         in_formation = api.read.session.in_formation()
-        energy_type = minfo.restapi.maxVirtualEnergy
+        refill_type = minfo.restapi.maxVirtualEnergy
 
         leader_index = self.find_leader_index()
         player_index = api.read.vehicle.player_index()
         leader_lap_into = api.read.lap.progress(leader_index)
         player_lap_into = api.read.lap.progress()
+        pit_time = (minfo.vehicles.pitTimer[leader_index][2],
+                    minfo.vehicles.pitTimer[player_index][2])
 
         leader_laptime_pace = self.leader_pace.update(leader_index)
         player_laptime_pace = minfo.delta.lapTimePace
@@ -256,21 +213,12 @@ class Realtime(Overlay):
             time_left = api.read.session.remaining()
             laps_diff = 0
 
-        # Update last pit time slot
-        self.leader_pit_time_set[-1] = minfo.vehicles.pitTimer[leader_index][2]
-        self.update_pit_time_leader(self.leader_pit_time_set[-1], self.last_pit_time_leader)
-        self.last_pit_time_leader = self.leader_pit_time_set[-1]
-
-        self.player_pit_time_set[-1] = minfo.vehicles.pitTimer[player_index][2]
-        self.update_pit_time_player(self.player_pit_time_set[-1], self.last_pit_time_player)
-        self.last_pit_time_player = self.player_pit_time_set[-1]
-
         # Update slots
         for index in range(self.total_slot):
             # Update lap progress difference & refill type
             if index == 0:
-                self.update_energy_type(energy_type, self.last_energy_type, index)
-                self.last_energy_type = energy_type
+                self.update_refill_type(refill_type, self.last_refill_type, index)
+                self.last_refill_type = refill_type
 
                 self.update_race_type(is_lap_type_session, self.last_session_type, index)
                 self.last_session_type = is_lap_type_session
@@ -281,9 +229,13 @@ class Realtime(Overlay):
                 self.last_lap_int = lap_int
                 continue
 
+            # Update last pit time slot
+            if index == self.total_slot - 1:
+                self.update_last_pit_time(pit_time, self.last_pit_time, index)
+                self.last_pit_time = pit_time
+
             # Predicate player
             if player_valid:
-                # lap_player, 0 - final lap frac, 1 - remaining laps, 2 highlight range
                 lap_player = self.time_type_final_progress(
                     player_laptime_pace, player_lap_into, time_left,
                     self.player_pit_time_set[index])
@@ -297,25 +249,17 @@ class Realtime(Overlay):
             self.update_lap_player(lap_player, self.last_lap_player[index], index)
             self.last_lap_player[index] = lap_player
 
-            # Player refill
+            # Refill player
             if is_lap_type_session and index != 1:  # disable refilling display in laps type
-                refill_player = refill_extra = -MAGIC_NUM
+                refill_player = -MAGIC_NUM
             elif not in_formation and leader_valid and player_valid:
-                consumption = minfo.energy if energy_type else minfo.fuel
+                consumption = minfo.energy if refill_type else minfo.fuel
                 refill_player = calc.total_fuel_needed(lap_player[1],
                     consumption.estimatedValidConsumption, consumption.amountCurrent)
-                if self.wcfg["show_extra_refilling"]:
-                    refill_extra = calc.total_fuel_needed(lap_player[1] + self.extra_laps,  # add extra
-                        consumption.estimatedValidConsumption, consumption.amountCurrent)
             else:
-                refill_player = refill_extra = -MAGIC_NUM
-            self.update_refill(refill_player, self.last_refill_player[index], index, energy_type)
+                refill_player = -MAGIC_NUM
+            self.update_refill(refill_player, self.last_refill_player[index], index, refill_type)
             self.last_refill_player[index] = refill_player
-
-            # Player refill extra
-            if self.wcfg["show_extra_refilling"]:
-                self.update_refill_extra(refill_extra, self.last_refill_extra[index], index, energy_type)
-                self.last_refill_extra[index] = refill_extra
 
             # Predicate leader
             if leader_valid and player_index != leader_index:
@@ -341,8 +285,9 @@ class Realtime(Overlay):
                 lap_text = f"{curr[0]:.{self.decimals_laps}f}"[:self.bar_width]
             else:
                 lap_text = TEXT_NONE
-            self.data_bar[f"lap_leader_{index}"].setText(lap_text)
-            self.data_bar[f"lap_leader_{index}"].setStyleSheet(self.leader_lap_color[curr[2]])
+            getattr(self, f"bar_lap_leader_{index}").setText(lap_text)
+            getattr(self, f"bar_lap_leader_{index}").setStyleSheet(
+                f"{self.leader_lap_color[curr[2]]}{self.style_width}")
 
     def update_lap_player(self, curr, last, index):
         """Player final lap progress"""
@@ -351,8 +296,9 @@ class Realtime(Overlay):
                 lap_text = f"{curr[0]:.{self.decimals_laps}f}"[:self.bar_width]
             else:
                 lap_text = TEXT_NONE
-            self.data_bar[f"lap_player_{index}"].setText(lap_text)
-            self.data_bar[f"lap_player_{index}"].setStyleSheet(self.player_lap_color[curr[2]])
+            getattr(self, f"bar_lap_player_{index}").setText(lap_text)
+            getattr(self, f"bar_lap_player_{index}").setStyleSheet(
+                f"{self.player_lap_color[curr[2]]}{self.style_width}")
 
     def update_lap_int(self, curr, last, index):
         """Lap progress difference"""
@@ -361,17 +307,15 @@ class Realtime(Overlay):
                 lap_text = f"{curr:.{self.decimals_laps}f}"[:self.bar_width]
             else:
                 lap_text = TEXT_NONE
-            self.data_bar[f"lap_player_{index}"].setText(lap_text)
+            getattr(self, f"bar_lap_player_{index}").setText(lap_text)
 
-    def update_pit_time_leader(self, curr, last):
-        """Leader pit time"""
+    def update_last_pit_time(self, curr, last, index):
+        """Last stint pit time"""
         if curr != last:
-            self.data_bar[f"pit_leader_{self.total_slot - 1}"].setText(f"{curr:.0f}s")
-
-    def update_pit_time_player(self, curr, last):
-        """Player pit time"""
-        if curr != last:
-            self.data_bar[f"pit_player_{self.total_slot - 1}"].setText(f"{curr:.0f}s")
+            self.leader_pit_time_set[-1] = curr[0]
+            self.player_pit_time_set[-1] = curr[1]
+            getattr(self, f"bar_pit_leader_{index}").setText(f"{curr[0]:.0f}s")
+            getattr(self, f"bar_pit_player_{index}").setText(f"{curr[1]:.0f}s")
 
     def update_race_type(self, curr, last, index):
         """Race type"""
@@ -380,38 +324,27 @@ class Realtime(Overlay):
                 type_text = "LAPS"
             else:
                 type_text = "TIME"
-            self.data_bar[f"pit_leader_{index}"].setText(type_text)
+            getattr(self, f"bar_pit_leader_{index}").setText(type_text)
 
-    def update_energy_type(self, curr, last, index):
-        """Energy type"""
+    def update_refill_type(self, curr, last, index):
+        """Refill type"""
         if curr != last:
-            if curr > 0:
+            if curr:
                 type_text = "NRG"
             else:
                 type_text = "FUEL"
-            self.data_bar[f"refill_{index}"].setText(type_text)
+            getattr(self, f"bar_refill_{index}").setText(type_text)
 
-    def update_refill(self, curr, last, index, energy_type):
+    def update_refill(self, curr, last, index, refill_type):
         """Player refill"""
         if curr != last:
             if curr > -MAGIC_NUM:
-                if not energy_type:
+                if not refill_type:
                     curr = self.fuel_units(curr)
                 refill_text = f"{curr:+.{self.decimals_refill}f}"[:self.bar_width].strip(".")
             else:
                 refill_text = TEXT_NONE
-            self.data_bar[f"refill_{index}"].setText(refill_text)
-
-    def update_refill_extra(self, curr, last, index, energy_type):
-        """Player refill extra lap"""
-        if curr != last:
-            if curr > -MAGIC_NUM:
-                if not energy_type:
-                    curr = self.fuel_units(curr)
-                refill_text = f"{curr:+.{self.decimals_refill}f}"[:self.bar_width].strip(".")
-            else:
-                refill_text = TEXT_NONE
-            self.data_bar[f"refill_extra_{index}"].setText(refill_text)
+            getattr(self, f"bar_refill_{index}").setText(refill_text)
 
     # Additional methods
     def fuel_units(self, fuel):

@@ -21,9 +21,8 @@ Trailing Widget
 """
 
 from collections import deque
-
-from PySide2.QtCore import Qt, QPointF, QRect
-from PySide2.QtGui import QPainter, QPixmap, QPen
+from PySide6.QtCore import Qt, QPointF, QRect
+from PySide6.QtGui import QPainter, QPixmap, QPen
 
 from ..api_control import api
 from ..module_info import minfo
@@ -32,7 +31,7 @@ from ._base import Overlay
 WIDGET_NAME = "trailing"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -94,9 +93,12 @@ class Realtime(Overlay):
         self.last_lap_etime = -1
         self.update_plot = 1
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Use elapsed time to determine whether data paused
             # Add 1 extra update compensation

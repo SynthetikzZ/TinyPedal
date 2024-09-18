@@ -20,8 +20,8 @@
 Speedometer Widget
 """
 
-from PySide2.QtCore import Qt
-from PySide2.QtWidgets import QGridLayout, QLabel
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGridLayout, QLabel
 
 from .. import calculation as calc
 from ..api_control import api
@@ -30,7 +30,7 @@ from ._base import Overlay
 WIDGET_NAME = "speedometer"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -137,9 +137,12 @@ class Realtime(Overlay):
         self.off_throttle_timer_start = 0
         self.on_throttle_timer_start = 0
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Read speed data
             speed = api.read.vehicle.speed()
@@ -182,7 +185,7 @@ class Realtime(Overlay):
         """Vehicle speed"""
         if curr != last:
             getattr(self, f"bar_speed_{suffix}").setText(
-                f"{self.speed_units(curr):0{self.leading_zero}.{self.decimals}f}")
+                f"{self.speed_units(curr):0{self.leading_zero}.0{self.decimals}f}")
 
     # Additional methods
     def speed_units(self, value):

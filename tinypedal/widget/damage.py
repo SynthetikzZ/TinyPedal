@@ -20,8 +20,8 @@
 Damage Widget
 """
 
-from PySide2.QtCore import Qt, QRectF
-from PySide2.QtGui import QPainter, QPen, QBrush
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainter, QPen, QBrush
 
 from ..api_control import api
 from ._base import Overlay
@@ -29,7 +29,7 @@ from ._base import Overlay
 WIDGET_NAME = "damage"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -135,9 +135,12 @@ class Realtime(Overlay):
         self.damage_wheel = [0] * 4
         self.last_damage_wheel = None
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Damage body
             self.damage_body = api.read.vehicle.damage_severity()

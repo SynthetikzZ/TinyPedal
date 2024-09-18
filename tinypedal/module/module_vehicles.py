@@ -45,7 +45,7 @@ class Realtime(DataModule):
         update_interval = self.active_interval
 
         while not self.event.wait(update_interval):
-            if self.state.active:
+            if api.state:
 
                 if not reset:
                     reset = True
@@ -268,8 +268,10 @@ def nearest_distance_data(
         if 0 == data.inPit > data.relativeDistance and data.relativeTimeGap < nearest_timegap:
             nearest_timegap = data.relativeTimeGap
         # Find nearest yellow flag (on track) distance
-        if data.isYellow and -nearest_yellow < data.relativeDistance < nearest_yellow:
-            nearest_yellow = data.relativeDistance
+        if data.isYellow:
+            rel_dist = abs(data.relativeDistance)
+            if rel_dist < nearest_yellow:
+                nearest_yellow = rel_dist
     return nearest_timegap, nearest_yellow
 
 

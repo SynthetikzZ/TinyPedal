@@ -191,31 +191,6 @@ def rotate_pos(ori_rad, value1, value2):
             cos_rad * value2 + sin_rad * value1)
 
 
-def wheel_axle_rotation(rot_left, rot_right):
-    """Wheel axle rotation"""
-    # Make sure both wheels rotate towards same direction
-    if rot_left >= 0 <= rot_right or rot_left <= 0 >= rot_right:
-        return (rot_left + rot_right) / 2
-    return 0
-
-
-def wheel_rotation_bias(rot_axle, rot_left, rot_right):
-    """Wheel rotation bias (difference) against axle rotation"""
-    if rot_axle:
-        return abs((rot_left - rot_right) / rot_axle)
-    return 0
-
-
-def wheel_rotation_ratio(rot_axle, rot_left, rot_right):
-    """Calculate wheel rotation ratio between left and right wheel on same axle
-
-    Range from 0 to 2. 1 means both wheels rotate at same speed.
-    """
-    if rot_axle:
-        return rot_left / rot_axle, rot_right / rot_axle
-    return 1, 1
-
-
 def lap_progress_distance(dist, length):
     """Current lap progress (distance into lap) fraction"""
     if length:
@@ -241,7 +216,7 @@ def lap_progress_difference(ahead_laptime, behind_laptime):
     """Lap progress difference (fraction) between player ahead & behind"""
     if behind_laptime > ahead_laptime > 0:
         return (behind_laptime - ahead_laptime) / behind_laptime
-    if ahead_laptime > behind_laptime > 0:
+    if ahead_laptime > ahead_laptime > 0:
         return (ahead_laptime - behind_laptime) / ahead_laptime
     return 0
 
@@ -295,24 +270,24 @@ def clock_time(seconds: float, start: int = 0, scale: int = 1) -> float:
 
 
 def sec2sessiontime(seconds: float) -> str:
-    """Session time (hour:min:sec)"""
-    return f"{seconds // 3600:02.0f}:{seconds // 60 % 60:02.0f}:{min(seconds % 60, 59):02.0f}"
+    """Session time (hour/min/sec/ms)"""
+    return f"{seconds // 3600:01.0f}:{seconds // 60 % 60:02.0f}:{min(seconds % 60, 59):02.0f}"
 
 
 def sec2laptime(seconds: float) -> str:
-    """Lap time (min:sec.ms)"""
+    """Lap time (min/sec/ms)"""
     if seconds > 60:
         return f"{seconds // 60:.0f}:{seconds % 60:06.3f}"
     return f"{seconds % 60:.3f}"
 
 
 def sec2laptime_full(seconds: float) -> str:
-    """Lap time full (min:sec.ms)"""
+    """Lap time (min/sec/ms) full"""
     return f"{seconds // 60:.0f}:{seconds % 60:06.3f}"
 
 
 def sec2stinttime(seconds: float) -> str:
-    """Stint time (min:sec)"""
+    """Lap time (min/sec/ms)"""
     return f"{seconds // 60:02.0f}:{min(seconds % 60, 59):02.0f}"
 
 
@@ -353,11 +328,6 @@ def exp_mov_avg(factor: float, ema_last: float, source: float) -> float:
 def ema_factor(samples: int) -> float:
     """Calculate smoothing factor for exponential moving average"""
     return 2 / (samples + 1)
-
-
-def accumulated_sum(value: float, end_index: int) -> float:
-    """Calculate accumulated sum"""
-    return sum(value[:end_index + 1])
 
 
 # Search
@@ -646,47 +616,16 @@ def fuel_to_energy_ratio(fuel, energy):
     return 0
 
 
-# Tyre
-def tyre_wear_difference(wear_curr: float, wear_prev: float, wear_total: float):
-    """Tyre wear difference and accumulated total wear"""
-    if wear_prev < wear_curr:
-        wear_prev = wear_curr
-    elif wear_prev > wear_curr:
-        wear_total += wear_prev - wear_curr
-        wear_prev = wear_curr
-    return wear_prev, wear_total
-
-
-def tyre_lifespan_in_laps(
-    wear_curr: float, wear_last_lap: float, wear_curr_lap: float):
-    """Tyre lifespan in laps = remaining / last lap wear"""
-    if wear_curr_lap > wear_last_lap > 0:
-        est_laps = wear_curr / wear_curr_lap
-    elif wear_last_lap > 0:
-        est_laps = wear_curr / wear_last_lap
-    else:
-        est_laps = 999
-    return min(est_laps, 999)
-
-
-def tyre_lifespan_in_mins(
-    wear_curr: float, wear_last_lap: float, wear_curr_lap: float, laptime: float):
-    """Tyre lifespan in minutes = remaining / last lap wear * laptime / 60"""
-    if laptime <= 0:
-        return 999
-    if wear_curr_lap > wear_last_lap > 0:
-        est_mins = wear_curr / wear_curr_lap * laptime / 60
-    elif wear_last_lap > 0:
-        est_mins = wear_curr / wear_last_lap * laptime / 60
-    else:
-        est_mins = 999
-    return min(est_mins, 999)
-
-
 # Misc
 def qss_min_width(text_width=1, style="", font_width=1, padding=0):
     """Set QSS minimum width with style, use functools.partial to preconfig"""
     return f"{style}min-width: {text_width * font_width + padding}px;"
+
+
+def qss_fixed_width(text_width=1, style="", font_width=1, padding=0):
+    """Set QSS fixed width with style, use functools.partial to preconfig"""
+    fixed_width = text_width * font_width + padding
+    return f"{style}min-width: {fixed_width}px;max-width: {fixed_width}px;"
 
 
 def image_size_adaption(org_width, org_height, target_width, target_height):

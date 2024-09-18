@@ -27,6 +27,7 @@ from math import ceil as roundup
 
 from ._base import DataModule
 from ..module_info import minfo
+from ..const import PATH_FUEL
 from ..api_control import api
 from .. import calculation as calc
 from .. import validator as val
@@ -41,10 +42,10 @@ round6 = partial(round, ndigits=6)
 
 class Realtime(DataModule):
     """Fuel usage data"""
+    filepath = PATH_FUEL
 
     def __init__(self, config):
         super().__init__(config, MODULE_NAME)
-        self.filepath = self.cfg.path.fuel_delta
 
     def update_data(self):
         """Update module data"""
@@ -52,7 +53,7 @@ class Realtime(DataModule):
         update_interval = self.active_interval
 
         while not self.event.wait(update_interval):
-            if self.state.active:
+            if api.state:
 
                 if not reset:
                     reset = True
@@ -261,11 +262,9 @@ def calc_data(output, telemetry_func, filepath, combo_id, extension):
         output.capacity = capacity
         output.amountStart = amount_start
         output.amountCurrent = amount_curr
-        output.amountUsedCurrent = used_curr
         output.amountNeeded = amount_need
         output.amountEndStint = amount_end
         output.lastLapConsumption = used_last_raw
-        output.lastLapValidConsumption = used_last
         output.estimatedConsumption = used_last + delta_fuel
         output.estimatedValidConsumption = used_est
         output.estimatedLaps = est_runlaps

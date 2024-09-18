@@ -68,11 +68,9 @@ class FuelInfo:
     capacity: float = 0
     amountStart: float = 0
     amountCurrent: float = 0
-    amountUsedCurrent: float = 0
     amountNeeded: float = 0
     amountEndStint: float = 0
     lastLapConsumption: float = 0
-    lastLapValidConsumption: float = 0
     estimatedConsumption: float = 0
     estimatedValidConsumption: float = 0
     estimatedLaps: float = 0
@@ -107,7 +105,7 @@ class HybridInfo:
     batteryDrainLast: float = 0
     batteryRegenLast: float = 0
     motorActiveTimer: float = 0
-    motorInactiveTimer: float = 0
+    motorInActiveTimer: float = 0
     motorState: int = 0
     fuelEnergyRatio: float = 0
 
@@ -129,34 +127,17 @@ class RelativeInfo:
     standings: list = field(default_factory=list)
     classes: list = field(default_factory=list)
 
-    def __post_init__(self):
-        """Initialize list to avoid out of range"""
-        self.relative = [-1]
-        self.standings = [-1]
-        self.classes = [[0,1,"",0,0,-1,-1]]
-
 
 @dataclass
 class SectorsInfo:
     """Sectors module output data"""
-    noDeltaSector: bool = True
     sectorIndex: int = -1
-    sectorPrev: list | None = None
-    sectorBestTB: list | None = None
-    sectorBestPB: list | None = None
     deltaSectorBestPB: list | None = None
     deltaSectorBestTB: list | None = None
-
-    def __post_init__(self):
-        """Initialize list to avoid out of range
-
-        Those are placehold, will be overwritten by Sectors module, no copy needed.
-        """
-        self.sectorPrev = [99999,99999,99999]
-        self.sectorBestTB = self.sectorPrev
-        self.sectorBestPB = self.sectorPrev
-        self.deltaSectorBestPB = self.sectorPrev
-        self.deltaSectorBestTB = self.sectorPrev
+    sectorBestTB: list | None = None
+    sectorBestPB: list | None = None
+    sectorPrev: list | None = None
+    noDeltaSector: bool = True
 
 
 @dataclass
@@ -196,10 +177,10 @@ class WheelsInfo:
     """Wheels module output data"""
     radiusFront: float = 0
     radiusRear: float = 0
-    slipRatio: list = field(default_factory=list)
+    slipRatio: tuple = field(default_factory=tuple)
 
     def __post_init__(self):
-        self.slipRatio = [0,0,0,0]
+        self.slipRatio = 0,0,0,0
 
 
 class ModuleInfo:

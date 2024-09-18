@@ -33,33 +33,25 @@ class APIControl:
 
     def __init__(self):
         self._api = None
-        self._same_api_loaded = False
-        self._state_override = False
-        self._active_state = False
-        self.read = None
+        self._read = None
+        self._state = None
 
     def connect(self, name: str = ""):
         """Connect to API
 
-        Args:
-            name: match API name in API_NAME_LIST
+        name: match api name in API_PACK
         """
         if not name:
             name = cfg.shared_memory_api["api_name"]
 
-        # Do not create new instance if same API already loaded
-        self._same_api_loaded = bool(self._api is not None and self._api.NAME == name)
-        if self._same_api_loaded:
-            logger.info("CONNECTING: same API detected, fast restarting")
-            return
-
         for _api in API_PACK:
             if _api.NAME == name:
                 self._api = _api()
-                return
+                return None
 
         logger.warning("CONNECTING: Invalid API name, fall back to default")
         self._api = API_PACK[0]()
+        return None
 
     def start(self):
         """Start API"""
@@ -67,13 +59,8 @@ class APIControl:
         logger.info("CONNECTING: %s API", self._api.NAME)
         self.setup()
         self._api.start()
-
-        # Reload dataset if API changed
-        if self.read is None or not self._same_api_loaded:
-            init_read = self._api.dataset()
-            self.read = init_read
-            self._same_api_loaded = True
-
+        init_read = self._api.dataset()
+        self._read = init_read
         logger.info("CONNECTED: %s API (%s)", self._api.NAME, self.version)
 
     def stop(self):
@@ -90,32 +77,46 @@ class APIControl:
 
     def setup(self):
         """Setup & apply API changes"""
-        self._api.setup(
+        api_config = (
             cfg.shared_memory_api["access_mode"],
             cfg.shared_memory_api["process_id"],
             cfg.shared_memory_api["enable_player_index_override"],
             cfg.shared_memory_api["player_index"],
             cfg.shared_memory_api["character_encoding"].lower(),
         )
-        self._state_override = cfg.shared_memory_api["enable_active_state_override"]
-        self._active_state = cfg.shared_memory_api["active_state"]
+        self._api.setup(api_config)
+        if cfg.shared_memory_api["enable_active_state_override"]:
+            self._state = self.__state_override
+        else:
+            self._state = self.__state_driving
+
+    def __state_override(self):
+        """API state override"""
+        return cfg.shared_memory_api["active_state"]
+
+    def __state_driving(self):
+        """API state driving"""
+        return not self._api.info.isPaused and self._read.vehicle.is_driving()
 
     @property
-    def name(self) -> str:
+    def read(self):
+        """API info reader"""
+        return self._read
+
+    @property
+    def name(self):
         """API name output"""
         return self._api.NAME
 
     @property
-    def state(self) -> bool:
+    def state(self):
         """API state output"""
-        if self._state_override:
-            return self._active_state
-        return self.read.check.api_state()
+        return self._state()
 
     @property
-    def version(self) -> str:
+    def version(self):
         """API version output"""
-        version = self.read.check.api_version()
+        version = self._read.check.version()
         return version if version else "not running"
 
 

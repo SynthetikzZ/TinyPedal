@@ -20,8 +20,8 @@
 DRS Widget
 """
 
-from PySide2.QtCore import Qt, QRectF
-from PySide2.QtGui import QPainter, QPen, QBrush
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainter, QPen, QBrush
 
 from ..api_control import api
 from ._base import Overlay
@@ -29,7 +29,7 @@ from ._base import Overlay
 WIDGET_NAME = "drs"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -66,9 +66,12 @@ class Realtime(Overlay):
         self.drs_state = (0, 0)
         self.last_drs_state = None
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # DRS update
             self.drs_state = (api.read.switch.drs(),

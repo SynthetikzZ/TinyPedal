@@ -21,18 +21,18 @@ Friction circle Widget
 """
 
 from collections import deque
-
-from PySide2.QtCore import Qt, QPointF, QRectF
-from PySide2.QtGui import QPainter, QPixmap, QRadialGradient, QPen, QBrush, QColor
+from PySide6.QtCore import Qt, QPointF, QRectF
+from PySide6.QtGui import QPainter, QPixmap, QRadialGradient, QPen, QBrush
 
 from .. import calculation as calc
+from ..api_control import api
 from ..module_info import minfo
 from ._base import Overlay
 
 WIDGET_NAME = "friction_circle"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -99,9 +99,8 @@ class Realtime(Overlay):
         self.pixmap_trace = QPixmap(self.area_size, self.area_size)
         self.pixmap_trace.fill(Qt.transparent)
         if self.wcfg["show_trace_fade_out"]:
-            trace_alpha = int(255 * min(max(self.wcfg["trace_fade_out_step"], 0.1), 0.9) / 2)
-            self.pixmap_fademask = QPixmap(self.area_size, self.area_size)
-            self.pixmap_fademask.fill(QColor(0, 0, 0, trace_alpha))
+            self.pixmap_trace_last = self.pixmap_trace.copy(0, 0, self.area_size, self.area_size)
+            self.trace_fade_out_step = 1 - min(max(self.wcfg["trace_fade_out_step"], 0.1), 0.9) / 2
 
         self.pen = QPen()
         self.pen.setCapStyle(Qt.RoundCap)
@@ -117,9 +116,12 @@ class Realtime(Overlay):
         self.last_x = self.scale_position(0)
         self.last_y = self.scale_position(0)
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Reset switch
             if not self.checked:
@@ -147,6 +149,9 @@ class Realtime(Overlay):
             if self.wcfg["show_trace"]:
                 self.data_gforce.append(QPointF(self.last_x, self.last_y))
                 self.draw_trace()
+                if self.wcfg["show_trace_fade_out"]:
+                    self.pixmap_trace_last = self.pixmap_trace.copy(
+                        0, 0, self.area_size, self.area_size)
             self.update()
 
     def paintEvent(self, event):
@@ -279,14 +284,13 @@ class Realtime(Overlay):
 
     def draw_trace(self):
         """Draw trace"""
+        self.pixmap_trace.fill(Qt.transparent)
         painter = QPainter(self.pixmap_trace)
         painter.setRenderHint(QPainter.Antialiasing, True)
         if self.wcfg["show_trace_fade_out"]:
-            painter.setCompositionMode(QPainter.CompositionMode_DestinationOut)
-            painter.drawPixmap(0, 0, self.pixmap_fademask)
-            painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
-        else:
-            self.pixmap_trace.fill(Qt.transparent)
+            painter.setOpacity(self.trace_fade_out_step)
+            painter.drawPixmap(0, 0, self.pixmap_trace_last)
+            painter.setOpacity(1.0)
         self.pen.setWidth(self.wcfg["trace_width"])
         self.pen.setColor(self.wcfg["trace_color"])
         self.pen.setStyle(Qt.SolidLine)

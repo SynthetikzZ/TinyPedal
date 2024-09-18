@@ -61,13 +61,13 @@ SET_WEATHERFORECAST = (
 )
 # Define task set
 # 0 - regex pattern (sim name), 1 - url path, 2 - output set
-TASK_RUNONCE = (
+TASK_ONCE = (
     ("LMU|RF2", "sessions/setting/SESSSET_race_timescale", SET_TIMESCALE),
     ("LMU|RF2", "sessions/setting/SESSSET_private_qual", SET_PRIVATEQUALIFY),
     ("LMU|RF2", "sessions/weather", SET_WEATHERFORECAST),
     ("LMU", "garage/chassis", SET_CHASSIS),
 )
-TASK_REPEATS = (
+TASK_REPEAT = (
     ("LMU", "garage/UIScreen/DriverHandOffStintEnd", SET_CONSUMPTION),
 )
 
@@ -83,11 +83,11 @@ class Realtime(DataModule):
         """Update module data"""
         reset = False
         update_interval = self.active_interval
-        sorted_task_runonce = {}
-        sorted_task_repeats = {}
+        sorted_task_once = {}
+        sorted_task_repeat = {}
 
         while not self.event.wait(update_interval):
-            if self.state.active:
+            if api.state:
 
                 if not reset:
                     reset = True
@@ -96,30 +96,30 @@ class Realtime(DataModule):
 
                     (sim_name, url_rest, time_out, retry, retry_delay
                      ) = self.__connection_setup()
-                    sorted_task_runonce = sort_tasks(sim_name, TASK_RUNONCE)
-                    sorted_task_repeats = sort_tasks(sim_name, TASK_REPEATS)
+                    sorted_task_once = sort_tasks(sim_name, TASK_ONCE)
+                    sorted_task_repeat = sort_tasks(sim_name, TASK_REPEAT)
                     # Run all tasks once per garage out, and check availability
-                    if sorted_task_runonce:
-                        asyncio.run(self.__task_runonce(
-                            sorted_task_runonce, url_rest, time_out, retry, retry_delay))
-                        self.__remove_unavailable_task(sorted_task_runonce)
-                    if sorted_task_repeats:
-                        asyncio.run(self.__task_runonce(
-                            sorted_task_repeats, url_rest, time_out, retry, retry_delay))
-                        self.__remove_unavailable_task(sorted_task_repeats)
+                    if sorted_task_once:
+                        asyncio.run(self.__task_once(
+                            sorted_task_once, url_rest, time_out, retry, retry_delay))
+                        self.__remove_unavailable_task(sorted_task_once)
+                    if sorted_task_repeat:
+                        asyncio.run(self.__task_once(
+                            sorted_task_repeat, url_rest, time_out, retry, retry_delay))
+                        self.__remove_unavailable_task(sorted_task_repeat)
 
                 # Run repeatedly while on track
-                if sorted_task_repeats:
-                    asyncio.run(self.__task_repeats(sorted_task_repeats, url_rest, time_out))
+                if sorted_task_repeat:
+                    asyncio.run(self.__task_repeat(sorted_task_repeat, url_rest, time_out))
 
             else:
                 if reset:
                     reset = False
                     update_interval = self.idle_interval
-                    reset_to_default((sorted_task_runonce, sorted_task_repeats))
+                    reset_to_default((sorted_task_once, sorted_task_repeat))
 
         # Reset to default on close
-        reset_to_default((sorted_task_runonce, sorted_task_repeats))
+        reset_to_default((sorted_task_once, sorted_task_repeat))
 
     def __remove_unavailable_task(self, active_task: dict) -> None:
         """Remove unavailable task"""
@@ -147,16 +147,16 @@ class Realtime(DataModule):
             url_rest = ""
         return sim_name, url_rest, time_out, retry, retry_delay
 
-    async def __task_runonce(self, active_task: dict, url: str,
+    async def __task_once(self, active_task: dict, url: str,
         time_out: int, retry: int, retry_delay: float) -> any:
-        """Update task runonce"""
+        """Update task once"""
         if not url:
             return None
         tasks = (self.__fetch_retry(url, time_out, retry, retry_delay, resource_name, active_task[resource_name])
                  for resource_name in active_task)
         return await asyncio.gather(*tasks)
 
-    async def __task_repeats(self, active_task: dict, url: str, time_out: int) -> any:
+    async def __task_repeat(self, active_task: dict, url: str, time_out: int) -> any:
         """Update task repeatedly"""
         if not url:
             return None

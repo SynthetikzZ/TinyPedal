@@ -25,13 +25,9 @@ import re
 from . import formatter as fmt
 from . import regex_pattern as rxp
 from . import validator as val
+from .api_connector import API_NAME_LIST
 
-COMMON_STRINGS = fmt.pipe_join(
-    rxp.CFG_FONT_NAME,
-    rxp.CFG_HEATMAP,
-    rxp.CFG_USER_PATH,
-    rxp.CFG_STRING
-)
+COMMON_STRINGS = fmt.pipe_join(rxp.CFG_FONT_NAME,rxp.CFG_HEATMAP,rxp.CFG_STRING)
 
 
 class ValueValidator:
@@ -42,8 +38,12 @@ class ValueValidator:
         self.types = (
             self.boolean,
             self.color,
-            self.choice_units,
-            self.choice_common,
+            self.api_name,
+            self.font_weight,
+            self.encoding,
+            self.deltabest,
+            self.target_laptime,
+            self.text_alignment,
             self.clock_format,
             self.string,
             self.integer,
@@ -69,20 +69,56 @@ class ValueValidator:
         return True
 
     @staticmethod
-    def choice_units(key: str, dict_user: dict) -> bool:
-        """Value - units choice list"""
-        if key not in rxp.CHOICE_UNITS:
+    def api_name(key: str, dict_user: dict) -> bool:
+        """Value - API name string"""
+        if not re.search(rxp.CFG_API_NAME, key):
             return False
-        if dict_user[key] not in rxp.CHOICE_UNITS[key]:
+        if dict_user[key] not in API_NAME_LIST:
             dict_user.pop(key)
         return True
 
     @staticmethod
-    def choice_common(key: str, dict_user: dict) -> bool:
-        """Value - common choice list"""
-        if key not in rxp.CHOICE_COMMON:
+    def font_weight(key: str, dict_user: dict) -> bool:
+        """Value - font weight string"""
+        if not re.search(rxp.CFG_FONT_WEIGHT, key):
             return False
-        if dict_user[key] not in rxp.CHOICE_COMMON[key]:
+        if dict_user[key].lower() not in rxp.FONT_WEIGHT_LIST:
+            dict_user.pop(key)
+        return True
+
+    @staticmethod
+    def encoding(key: str, dict_user: dict) -> bool:
+        """Value - encoding string"""
+        if not re.search(rxp.CFG_ENCODING, key):
+            return False
+        if dict_user[key] not in rxp.ENCODING_LIST:
+            dict_user.pop(key)
+        return True
+
+    @staticmethod
+    def deltabest(key: str, dict_user: dict) -> bool:
+        """Value - deltabest string"""
+        if not re.search(rxp.CFG_DELTABEST, key):
+            return False
+        if dict_user[key] not in rxp.DELTABEST_LIST:
+            dict_user.pop(key)
+        return True
+
+    @staticmethod
+    def target_laptime(key: str, dict_user: dict) -> bool:
+        """Value - target laptime string"""
+        if not re.search(rxp.CFG_TARGET_LAPTIME, key):
+            return False
+        if dict_user[key] not in rxp.TARGET_LAPTIME_LIST:
+            dict_user.pop(key)
+        return True
+
+    @staticmethod
+    def text_alignment(key: str, dict_user: dict) -> bool:
+        """Value - text alignment string"""
+        if not re.search(rxp.CFG_TEXT_ALIGNMENT, key):
+            return False
+        if dict_user[key] not in rxp.TEXT_ALIGNMENT_LIST:
             dict_user.pop(key)
         return True
 

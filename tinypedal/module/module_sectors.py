@@ -26,11 +26,12 @@ from functools import partial
 
 from ._base import DataModule
 from ..module_info import minfo
+from ..const import PATH_SECTORBEST
 from ..api_control import api
 from .. import validator as val
 
 MODULE_NAME = "module_sectors"
-MAGIC_NUM = 99999
+MAGIC_NUM = 99999  # magic number for default variable not updated by rF2
 
 logger = logging.getLogger(__name__)
 round6 = partial(round, ndigits=6)
@@ -38,10 +39,10 @@ round6 = partial(round, ndigits=6)
 
 class Realtime(DataModule):
     """Sectors data"""
+    filepath = PATH_SECTORBEST
 
     def __init__(self, config):
         super().__init__(config, MODULE_NAME)
-        self.filepath = self.cfg.path.sector_best
 
     def update_data(self):
         """Update module data"""
@@ -49,7 +50,7 @@ class Realtime(DataModule):
         update_interval = self.active_interval
 
         while not self.event.wait(update_interval):
-            if self.state.active:
+            if api.state:
 
                 if not reset:
                     reset = True
@@ -192,13 +193,13 @@ def calc_sectors(output, best_s_tb, best_s_pb):
 
             # Output sectors data
             if output:
-                output.noDeltaSector = no_delta_s
                 output.sectorIndex = sector_idx
-                output.sectorPrev = prev_s
-                output.sectorBestTB = best_s_tb
-                output.sectorBestPB = best_s_pb
                 output.deltaSectorBestPB = delta_s_pb
                 output.deltaSectorBestTB = delta_s_tb
+                output.sectorBestTB = best_s_tb
+                output.sectorBestPB = best_s_pb
+                output.sectorPrev = prev_s
+                output.noDeltaSector = no_delta_s
 
 
 def load_sectors(filepath:str, combo: str, session_id: tuple):

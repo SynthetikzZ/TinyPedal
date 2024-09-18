@@ -20,17 +20,18 @@
 Deltabest Widget
 """
 
-from PySide2.QtCore import Qt, QRectF
-from PySide2.QtGui import QPainter, QPen, QBrush
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainter, QPen, QBrush
 
 from .. import calculation as calc
+from ..api_control import api
 from ..module_info import minfo
 from ._base import Overlay
 
 WIDGET_NAME = "deltabest"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -89,9 +90,12 @@ class Realtime(Overlay):
         self.last_laptime = 0
         self.new_lap = True
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Deltabest
             if minfo.delta.lapTimeCurrent < self.freeze_duration:

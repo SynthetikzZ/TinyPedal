@@ -22,8 +22,8 @@ Radar Widget
 
 from dataclasses import dataclass
 
-from PySide2.QtCore import Qt, QRectF
-from PySide2.QtGui import QPainter, QPixmap, QLinearGradient, QRadialGradient, QPen, QBrush, QColor
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainter, QPixmap, QLinearGradient, QRadialGradient, QPen, QBrush, QColor
 
 from .. import calculation as calc
 from ..api_control import api
@@ -33,7 +33,7 @@ from ._base import Overlay
 WIDGET_NAME = "radar"
 
 
-class Realtime(Overlay):
+class Draw(Overlay):
     """Draw widget"""
 
     def __init__(self, config):
@@ -79,9 +79,12 @@ class Realtime(Overlay):
         self.vehicles_data = None
         self.last_veh_data_version = None
 
+        # Set widget state & start update
+        self.set_widget_state()
+
     def timerEvent(self, event):
         """Update when vehicle on track"""
-        if self.state.active:
+        if api.state:
 
             # Auto hide radar if no nearby vehicles
             if self.wcfg["auto_hide"]:
