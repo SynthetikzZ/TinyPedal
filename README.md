@@ -4,8 +4,9 @@ TinyPedal is a Free and Open Source telemetry overlay application for racing sim
 
 Currently supports `rFactor 2` and `Le Mans Ultimate`.
 
-This Fork replaces PySide2 with PySide6(doesnt add any features, just allows you to run it without a venv) and sets the required Flag QT_QPA_PLATFORM=xcb to work with Wayland *maybe contains bugs, pls report*,adjusts the installscript.If you are running KDE Plasma 6 Desktop, you should be able to start/install directly, dependencys should be installed already  currently under test with python3.12
-
+This Fork replaces PySide2 with PySide6(doesnt add any features, just allows you to run it without a venv with up-to-date dependencies) and sets the required Flag QT_QPA_PLATFORM=xcb to work with Wayland *maybe contains bugs, pls report, had none sofar*.If you are running KDE Plasma 6 Desktop, you should be able to start/install directly, dependencys should be installed already, you need pyside6, pyxdg and psutil.  currently under test with python3.12 installscript installs everything in $HOME/.local instead of usr/, do NOT use sudo to install. also fixed a bug in the installscript that prevents the installation if the path to the installation files contains whitespaces.
+if you don't have issues with the original TinyPedal, don't use this fork.
+this fork is mainly targeted towards Linux, should be working under windows tho.
 
 [Download](https://github.com/s-victor/TinyPedal/releases) - [Quick Start](#quick-start) - [FAQ](https://github.com/s-victor/TinyPedal/wiki/Frequently-Asked-Questions) - [User Guide](https://github.com/s-victor/TinyPedal/wiki/User-Guide) - [Run on Linux](#running-on-linux)
 ---
