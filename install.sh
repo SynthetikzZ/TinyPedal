@@ -48,11 +48,12 @@ install_to() {
         replace "./" "${DESTINATION_PATH}/" <"${SOURCE_PATH}/TinyPedal.sh" | sudo tee "${BIN_PATH}/TinyPedal" > /dev/null
         sudo chmod a+x "${BIN_PATH}/TinyPedal"
     fi
-
+    echo ""
     echo "Installation finished."
 }
 
 path_approval() {
+    echo ""
     echo "Are you sure you want to install TinyPedal to '${DESTINATION_PREFIX}' prefix?"
     select yn in "yes" "go back" "exit"; do
         case $yn in
@@ -71,13 +72,15 @@ remove() {
 
 
 set_path() {
+    echo ""
     echo "desired installation path:"
     read CUSTOMPATH
-    DESTINATION_PREFIX=$CUSTOMPATH
+    DESTINATION_PREFIX=${CUSTOMPATH%/}
 }
 
 
 main_menu() {
+    echo ""
     echo "  _______ _             _____         _       _ "
     echo " |__   __(_)           |  __ \       | |     | |"
     echo "    | |   _ _ __  _   _| |__) |__  __| | __ _| |"
@@ -103,10 +106,21 @@ main_menu() {
 
 
 install_found() {
+    echo ""
+    echo "  _______ _             _____         _       _ "
+    echo " |__   __(_)           |  __ \       | |     | |"
+    echo "    | |   _ _ __  _   _| |__) |__  __| | __ _| |"
+    echo "    | |  | | '_ \| | | |  ___/ _ \/ _\` |/ _\` | |"
+    echo "    | |  | | | | | |_| | |  |  __/ (_| | (_| | |"
+    echo "    |_|  |_|_| |_|\__, |_|   \___|\__,_|\__,_|_|"
+    echo "                   __/ |                        "
+    echo "                  |___/                         "
+    echo ""
     echo "existing installation of TinyPedal found under ${OLDINSTALL}/share/TinyPedal/. Select an option:"
+    echo ""
     select yn in "update" "remove" "exit"; do
         case $yn in
-            1|"update"   )   remove;DESTINATION_PREFIX=$OLDINSTALL;install_to;echo "TinyPedal updated";exit;;
+            1|"update"   )   remove;DESTINATION_PREFIX=$OLDINSTALL;install_to;exit;;
             2|"remove"   )   remove;main_menu;;
             3|"exit"     )   exit;;
         esac
@@ -134,7 +148,7 @@ then
 fi
 
 
-if [ -n "$1" ];then DESTINATION_PREFIX=${1};path_approval;fi;
+if [ -n "$1" ];then DESTINATION_PREFIX=${1%/};path_approval;fi;
 
 if [ ! "$1" ];then main_menu;fi;
 
