@@ -16,7 +16,6 @@ install_to() {
     BIN_PATH="${DESTINATION_PREFIX}/bin"
     DESTINATION_PATH="${SHARE_PATH}/TinyPedal"
 
-    echo "Writing ${DESTINATION_PATH}"
     if [ -w "${SHARE_PATH}" ]; then
         cp -r "${SOURCE_PATH}" "${DESTINATION_PATH}"
         chown $USER "${DESTINATION_PATH}"
@@ -24,13 +23,14 @@ install_to() {
         sudo cp -r "${SOURCE_PATH}" "${DESTINATION_PATH}"
         sudo chown $USER "${DESTINATION_PATH}"
     fi
-
+    echo "Writing ${DESTINATION_PATH}"
     if [ ! -d "${APPLICATIONS_PATH}" ]; then
         if [ -w "${SHARE_PATH}" ]; then
             mkdir ${APPLICATIONS_PATH}
         else
             sudo mkdir ${APPLICATIONS_PATH}
         fi
+        echo "creating applications directory"
     fi
 
     echo "Writing ${APPLICATIONS_PATH}/svictor-TinyPedal.desktop"
